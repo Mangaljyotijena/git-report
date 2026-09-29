@@ -77,7 +77,7 @@ async function refreshStatus() {
     status = await api('GET', '/api/status');
     $('#side-status').innerHTML = `
       <div><span class="dot ${status.emailConfigured ? 'ok' : 'bad'}"></span>Email ${status.emailConfigured ? 'ready' : 'not set up'}</div>
-      <div><span class="dot ${status.aiConfigured ? 'ok' : 'bad'}"></span>AI ${status.aiConfigured ? 'ready' : 'not set up'}</div>
+      <div><span class="dot ${status.aiConfigured ? 'ok' : 'bad'}"></span>Claude ${status.aiConfigured ? 'ready' : 'not set up'}</div>
       <div><span class="dot ${status.running ? 'busy' : ''}"></span>${status.running ? `${status.running} scan(s) running` : 'Idle'}</div>`;
   } catch (_) { /* offline */ }
 }
@@ -147,8 +147,8 @@ async function dashboard() {
     </div>
     <div class="grid two">
       <div class="card">
-        <div class="row"><h2 class="grow">AI summary</h2>${status.aiConfigured ? `<button class="btn small" id="gen">${scan.ai_summary ? 'Regenerate' : 'Generate'}</button><a class="btn small" href="#/assistant">Ask a question</a>` : ''}</div>
-        <div id="ai">${scan.ai_summary ? md(scan.ai_summary) : `<p class="muted">${status.aiConfigured ? 'No summary for this scan yet.' : 'Add an Anthropic API key in <a href="#/settings">Settings</a> to get AI summaries and the assistant.'}</p>`}</div>
+        <div class="row"><h2 class="grow">Summary</h2><button class="btn small" id="gen">${scan.ai_summary ? 'Regenerate' : 'Generate'}${status.aiConfigured ? ' AI summary' : ' summary'}</button><a class="btn small" href="#/assistant">Ask a question</a></div>
+        <div id="ai">${scan.ai_summary ? md(scan.ai_summary) : '<p class="muted">No summary for this scan yet.</p>'}</div>
       </div>
       <div class="card"><h2>Insights</h2>
         <ul class="insights">${report.insights.map((i) => `<li>${badge(i.level, lvl[i.level])}<span>${esc(i.text)}</span></li>`).join('')}</ul>
@@ -208,7 +208,7 @@ async function runScanDialog() {
       </div>
       <div class="checks">
         <label class="check"><input type="checkbox" name="noBots" checked>Ignore bots</label>
-        <label class="check"><input type="checkbox" name="aiSummary" ${status.aiConfigured ? 'checked' : 'disabled'}>AI summary</label>
+        <label class="check"><input type="checkbox" name="aiSummary" checked>Include summary</label>
         <label class="check"><input type="checkbox" name="sendEmail" ${status.emailConfigured ? '' : 'disabled'}>Email the report</label>
         <label class="check"><input type="checkbox" name="blame">Code ownership (git blame, slower)</label>
       </div>
@@ -252,7 +252,7 @@ async function scanDetail(id) {
         ${s.status === 'done' ? `<a class="btn" href="/api/scans/${s.id}/html" target="_blank">Full report</a>
           <button class="btn" id="dash">Open in dashboard</button>
           <button class="btn" id="email" ${status.emailConfigured ? '' : 'disabled title="Set up email in Settings"'}>Email report</button>
-          ${status.aiConfigured ? `<button class="btn" id="gen">${s.ai_summary ? 'Regenerate' : 'Generate'} AI summary</button>` : ''}` : ''}
+          <button class="btn" id="gen">${s.ai_summary ? 'Regenerate' : 'Generate'}${status.aiConfigured ? ' AI summary' : ' summary'}</button>` : ''}
         ${active ? '' : '<button class="btn danger" id="del">Delete</button>'}
       </div>
     </div>
