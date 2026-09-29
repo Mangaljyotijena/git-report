@@ -258,7 +258,7 @@ async function scanDetail(id) {
     </div>
     ${s.error ? `<div class="card"><strong class="del">Error:</strong> ${esc(s.error)}</div>` : ''}
     ${sum ? `<div class="grid stats">${stat('commits', fmt(sum.commits), 'i-git')}${stat('developers', fmt(sum.developers), 'i-users')}${stat('lines changed', plusMinus(sum.additions, sum.deletions), 'i-code')}${stat('unmerged commits', fmt(sum.unmergedCommits), 'i-branch')}${stat('bus factor', fmt(sum.busFactor), 'i-shield')}</div>` : ''}
-    ${s.ai_summary ? `<div class="card"><h2>AI summary</h2>${md(s.ai_summary)}</div>` : ''}
+    ${s.ai_summary ? `<div class="card"><h2>Summary</h2>${md(s.ai_summary)}</div>` : ''}
     <div class="card"><h2>Details</h2>
       <table><tbody>
         <tr><td class="muted">Filters</td><td><code>${esc(JSON.stringify(s.params))}</code></td></tr>
@@ -370,7 +370,7 @@ async function schedules() {
   const [list, repoList] = await Promise.all([api('GET', '/api/schedules'), api('GET', '/api/repos')]);
   const repoName = Object.fromEntries(repoList.map((r) => [r.id, r.name]));
   view.innerHTML = `
-    <div class="page-head"><div><h1>Schedules</h1><div class="sub">Periodic scans that write an AI summary and email the report.</div></div><button class="btn primary" id="add">New schedule</button></div>
+    <div class="page-head"><div><h1>Schedules</h1><div class="sub">Periodic scans that write a summary and email the report.</div></div><button class="btn primary" id="add">New schedule</button></div>
     <div class="card">${list.length ? `<div class="table-wrap"><table>
       <thead><tr><th>Name</th><th>When</th><th>Repositories</th><th>Window</th><th>Delivery</th><th>Last run</th><th></th></tr></thead>
       <tbody>${list.map((s) => `<tr>
@@ -398,7 +398,7 @@ async function schedules() {
 
 function scheduleDialog(s, repoList) {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  s = s || { name: 'Weekly team report', cron: '0 9 * * 1', timezone: tz, repo_ids: [], since: '7 days ago', options: { noBots: true }, send_email: 1, ai_summary: status.aiConfigured ? 1 : 0, enabled: 1 };
+  s = s || { name: 'Weekly team report', cron: '0 9 * * 1', timezone: tz, repo_ids: [], since: '7 days ago', options: { noBots: true }, send_email: 1, ai_summary: 1, enabled: 1 };
   const preset = CRON_PRESETS.some(([v]) => v === s.cron) ? s.cron : 'custom';
   openDialog(`
     <h2>${s.id ? 'Edit' : 'New'} schedule</h2>
