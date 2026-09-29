@@ -117,6 +117,7 @@ const SETTING_DEFAULTS = {
   anthropic_api_key: '',
   ai_model: 'claude-opus-5-5',
   ai_effort: 'medium',
+  agent_mode: 'auto', // 'auto' (Claude when a key exists, otherwise Smart), 'smart' or 'claude'
   app_url: '',
 };
 

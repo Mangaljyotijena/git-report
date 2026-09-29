@@ -39,6 +39,7 @@ app.get('/api/status', wrap((req, res) => {
   res.json({
     aiConfigured: !!s.anthropic_api_key,
     emailConfigured: !!(s.smtp_user && s.smtp_password),
+    agentMode: s.agent_mode || 'auto',
     repos: db.prepare('SELECT COUNT(*) AS n FROM repos').get().n,
     schedules: db.prepare('SELECT COUNT(*) AS n FROM schedules WHERE enabled = 1').get().n,
     scans: db.prepare("SELECT COUNT(*) AS n FROM scans WHERE status = 'done'").get().n,
@@ -250,7 +251,12 @@ app.post('/api/chat', async (req, res) => {
   res.flushHeaders();
   const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   try {
-    const out = await agent.chat(req.body.conversationId ? Number(req.body.conversationId) : null, question, (e) => send(e.type, e));
+    const out = await agent.chat(
+      req.body.conversationId ? Number(req.body.conversationId) : null,
+      question,
+      (e) => send(e.type, e),
+      { mode: req.body.mode === 'smart' || req.body.mode === 'claude' || req.body.mode === 'auto' ? req.body.mode : undefined },
+    );
     send('done', out);
   } catch (err) {
     send('error', { error: err.message });

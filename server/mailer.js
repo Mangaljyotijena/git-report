@@ -55,7 +55,7 @@ function reportEmailHtml({ scanId, report, aiSummary, scheduleName, appUrl }) {
   <table style="border-collapse:separate;border-spacing:6px;margin:16px -6px;width:calc(100% + 12px)"><tr>
     ${stat('commits', fmt(s.commits))}${stat('developers', fmt(s.developers))}${stat('lines +/−', `<span style="color:#1a9e5c">+${fmt(s.additions)}</span> <span style="color:#d6453d">−${fmt(s.deletions)}</span>`)}${stat('unmerged commits', fmt(s.unmergedCommits))}${stat('bus factor', fmt(s.busFactor))}
   </tr></table>
-  ${aiSummary ? `<div style="background:#fff;border:1px solid #e4e7ec;border-radius:10px;padding:4px 18px;margin-bottom:16px"><div style="font-size:12px;color:#667085;margin-top:12px">AI summary</div>${renderMarkdown(aiSummary)}</div>` : ''}
+  ${aiSummary ? `<div style="background:#fff;border:1px solid #e4e7ec;border-radius:10px;padding:4px 18px;margin-bottom:16px"><div style="font-size:12px;color:#667085;margin-top:12px">${/no AI used/.test(aiSummary) ? 'Summary' : 'AI summary'}</div>${renderMarkdown(aiSummary)}</div>` : ''}
   <div style="background:#fff;border:1px solid #e4e7ec;border-radius:10px;padding:14px 18px;margin-bottom:16px">
     <h2 style="font-size:15px;margin:0 0 8px">Insights</h2>
     <ul style="padding-left:18px;margin:0">${report.insights.map((i) => `<li style="margin:4px 0"><span style="color:${levelColor[i.level] || '#667085'};font-weight:600">${esc(i.level)}</span> ${esc(i.text)}</li>`).join('')}</ul>

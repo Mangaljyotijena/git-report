@@ -3,7 +3,7 @@
 const cron = require('node-cron');
 const { db, loadReport } = require('./db');
 const { queueScan, onScanFinished } = require('./scanner');
-const { summarizeScan, aiConfigured } = require('./agent');
+const { summarizeScan } = require('./agent');
 const { sendReportEmail } = require('./mailer');
 
 const tasks = new Map(); // schedule id -> cron task
@@ -46,13 +46,13 @@ onScanFinished(async (scanId, log) => {
   }
   const wantsSummary = schedule ? !!schedule.ai_summary : !!params.aiSummary;
   let aiSummary = null;
-  if (wantsSummary && aiConfigured()) {
+  if (wantsSummary) {
     try {
-      log('Writing AI summary…');
+      log('Writing summary…');
       aiSummary = await summarizeScan(scanId);
       db.prepare('UPDATE scans SET ai_summary = ? WHERE id = ?').run(aiSummary, scanId);
     } catch (err) {
-      log(`AI summary failed: ${err.message}`);
+      log(`Summary failed: ${err.message}`);
     }
   }
   const wantsEmail = schedule ? !!schedule.send_email : !!params.sendEmail;
