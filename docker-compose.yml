@@ -1,0 +1,19 @@
+services:
+  git-insights:
+    build: .
+    image: git-insights:latest
+    container_name: git-insights
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      TZ: ${TZ:-UTC}
+    volumes:
+      - git-insights-data:/data          # SQLite database, clones, encryption key
+      - ${LOCAL_REPOS_DIR:-./repos}:/repos:ro   # optional: local repositories, add them as /repos/<name>
+
+volumes:
+  git-insights-data:

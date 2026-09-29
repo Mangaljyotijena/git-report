@@ -1,0 +1,32 @@
+{
+  "name": "git-contrib-report",
+  "version": "2.0.0",
+  "description": "Developer contribution reports for git repositories: a CLI plus a web app with scheduled scans, Gmail reports and an AI assistant.",
+  "main": "src/cli.js",
+  "bin": {
+    "git-report": "bin/git-report.js"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server/index.js",
+    "report": "node bin/git-report.js",
+    "test": "node test/smoke.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.129.0",
+    "express": "^5.2.1",
+    "node-cron": "^4.6.0",
+    "nodemailer": "^10.0.12"
+  },
+  "keywords": [
+    "git",
+    "report",
+    "contributors",
+    "statistics",
+    "cli"
+  ],
+  "license": "MIT"
+}
