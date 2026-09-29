@@ -63,8 +63,12 @@ function openDialog(html, onSubmit, onMount) {
 }
 
 const badge = (text, cls = text) => `<span class="badge ${esc(cls)}">${esc(text)}</span>`;
-const stat = (label, value) => `<div class="stat"><div class="v">${value}</div><div class="l">${esc(label)}</div></div>`;
+const stat = (label, value, mod = '') => `<div class="stat${mod ? ` ${mod}` : ''}"><div class="v">${value}</div><div class="l">${esc(label)}</div></div>`;
 const plusMinus = (a, d) => `<span class="add">+${fmt(a)}</span> <span class="del">−${fmt(d)}</span>`;
+const initials = (name) => {
+  const parts = String(name || '').trim().split(/[\s._-]+/).filter(Boolean);
+  return esc(((parts[0]?.[0] || '?') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase());
+};
 
 // ---- status & router --------------------------------------------------------------------------------
 let status = {};
@@ -138,8 +142,8 @@ async function dashboard() {
       </div>
     </div>
     <div class="grid stats">
-      ${stat('commits', fmt(s.commits))}${stat('developers', fmt(s.developers))}${stat('lines changed', plusMinus(s.additions, s.deletions))}
-      ${stat('active last 30 days', fmt(s.activeLast30Days))}${stat('unmerged commits', fmt(s.unmergedCommits))}${stat('stale branches', fmt(s.staleBranches))}${stat('bus factor', fmt(s.busFactor))}
+      ${stat('commits', fmt(s.commits), 'i-git')}${stat('developers', fmt(s.developers), 'i-users')}${stat('lines changed', plusMinus(s.additions, s.deletions), 'i-code')}
+      ${stat('active last 30 days', fmt(s.activeLast30Days), 'i-clock')}${stat('unmerged commits', fmt(s.unmergedCommits), 'i-branch')}${stat('stale branches', fmt(s.staleBranches), 'i-alert')}${stat('bus factor', fmt(s.busFactor), 'i-shield')}
     </div>
     <div class="grid two">
       <div class="card">
@@ -156,7 +160,7 @@ async function dashboard() {
     </div>
     <div class="card"><h2>Developers</h2><div class="table-wrap"><table>
       <thead><tr><th>#</th><th>Developer</th><th class="num">Commits</th><th class="num">Lines</th><th>Share</th><th class="num">Unmerged</th><th class="num">Active days</th><th class="num">Last commit</th></tr></thead>
-      <tbody>${devs.slice(0, 25).map((d) => `<tr><td class="muted">${d.rank}</td><td>${esc(d.name)}<div class="small muted">${esc(d.email)}</div></td>
+      <tbody>${devs.slice(0, 25).map((d) => `<tr><td class="muted">${d.rank}</td><td><div class="who"><span class="avatar">${initials(d.name)}</span><div class="who-t"><div class="nm">${esc(d.name)}</div><div class="small muted">${esc(d.email)}</div></div></div></td>
         <td class="num">${fmt(d.commits)}</td><td class="num">${plusMinus(d.additions, d.deletions)}</td>
         <td><div class="share" title="${d.shareOfChurn}% of changed lines"><span style="width:${(d.churn / maxChurn) * 100}%"></span></div></td>
         <td class="num">${d.unmerged.commits ? fmt(d.unmerged.commits) : '<span class="muted">0</span>'}</td><td class="num">${fmt(d.activeDays)}</td><td class="num">${esc(d.lastCommit)}</td></tr>`).join('')}</tbody>
@@ -253,7 +257,7 @@ async function scanDetail(id) {
       </div>
     </div>
     ${s.error ? `<div class="card"><strong class="del">Error:</strong> ${esc(s.error)}</div>` : ''}
-    ${sum ? `<div class="grid stats">${stat('commits', fmt(sum.commits))}${stat('developers', fmt(sum.developers))}${stat('lines changed', plusMinus(sum.additions, sum.deletions))}${stat('unmerged commits', fmt(sum.unmergedCommits))}${stat('bus factor', fmt(sum.busFactor))}</div>` : ''}
+    ${sum ? `<div class="grid stats">${stat('commits', fmt(sum.commits), 'i-git')}${stat('developers', fmt(sum.developers), 'i-users')}${stat('lines changed', plusMinus(sum.additions, sum.deletions), 'i-code')}${stat('unmerged commits', fmt(sum.unmergedCommits), 'i-branch')}${stat('bus factor', fmt(sum.busFactor), 'i-shield')}</div>` : ''}
     ${s.ai_summary ? `<div class="card"><h2>AI summary</h2>${md(s.ai_summary)}</div>` : ''}
     <div class="card"><h2>Details</h2>
       <table><tbody>
@@ -508,7 +512,7 @@ async function assistant(convId) {
     <div class="page-head"><div><h1>Assistant</h1><div class="sub">Ask anything about your repositories, developers and scans.</div></div>
       <a class="btn" href="#/assistant">New chat</a></div>
     <div class="chat">
-      <div class="card convs">${convs.map((c) => `<a href="#/assistant/${c.id}" class="${c.id === currentConv ? 'active' : ''}"><span title="${esc(c.title)}">${esc(c.title || 'Untitled')}</span><button class="btn small danger" data-del="${c.id}" title="Delete">×</button></a>`).join('') || '<div class="small muted" style="padding:8px">No conversations yet.</div>'}</div>
+      <div class="card convs"><div class="convs-title">Conversations</div>${convs.map((c) => `<a href="#/assistant/${c.id}" class="${c.id === currentConv ? 'active' : ''}"><span title="${esc(c.title)}">${esc(c.title || 'Untitled')}</span><button class="btn small danger" data-del="${c.id}" title="Delete">×</button></a>`).join('') || '<div class="convs-empty">No conversations yet.<br>Ask the assistant anything to start one.</div>'}</div>
       <div class="card chat-main">
         <div class="msgs" id="msgs"></div>
         <form class="composer" id="composer">
