@@ -505,19 +505,28 @@ const SUGGESTIONS = [
 ];
 let currentConv = null;
 
+const agentMode = () => status.agentMode || 'auto';
+const agentAvailable = () => agentMode() !== 'claude' || status.aiConfigured;
+const composerPlaceholder = () => (agentMode() === 'claude' && !status.aiConfigured)
+  ? 'Add an Anthropic API key in Settings first'
+  : 'Ask about commits, developers, branches, trends…';
+const thinkingLabel = () => (agentMode() === 'claude' && status.aiConfigured ? 'Thinking' : 'Checking scans');
+
 async function assistant(convId) {
   currentConv = convId ? Number(convId) : null;
   const convs = await api('GET', '/api/conversations');
   view.innerHTML = `
     <div class="page-head"><div><h1>Assistant</h1><div class="sub">Ask anything about your repositories, developers and scans.</div></div>
-      <a class="btn" href="#/assistant">New chat</a></div>
+      <div class="row"><div class="seg" id="mode-seg" title="Answer engine: Smart is deterministic (no AI), Claude needs an API key, Auto picks Claude when a key exists">
+        ${[['auto', 'Auto'], ['smart', 'Smart'], ['claude', 'Claude']].map(([v, l]) => `<button type="button" data-mode="${v}" class="${agentMode() === v ? 'on' : ''}">${l}</button>`).join('')}
+      </div><a class="btn" href="#/assistant">New chat</a></div></div>
     <div class="chat">
       <div class="card convs"><div class="convs-title">Conversations</div>${convs.map((c) => `<a href="#/assistant/${c.id}" class="${c.id === currentConv ? 'active' : ''}"><span title="${esc(c.title)}">${esc(c.title || 'Untitled')}</span><button class="btn small danger" data-del="${c.id}" title="Delete">×</button></a>`).join('') || '<div class="convs-empty">No conversations yet.<br>Ask the assistant anything to start one.</div>'}</div>
       <div class="card chat-main">
         <div class="msgs" id="msgs"></div>
         <form class="composer" id="composer">
-          <textarea name="q" rows="1" placeholder="${status.aiConfigured ? 'Ask about commits, developers, branches, trends…' : 'Add an Anthropic API key in Settings first'}" ${status.aiConfigured ? '' : 'disabled'}></textarea>
-          <button class="btn primary" type="submit" ${status.aiConfigured ? '' : 'disabled'}>Send</button>
+          <textarea name="q" rows="1" placeholder="${composerPlaceholder()}" ${agentAvailable() ? '' : 'disabled'}></textarea>
+          <button class="btn primary" type="submit" ${agentAvailable() ? '' : 'disabled'}>Send</button>
         </form>
       </div>
     </div>`;
