@@ -106,7 +106,7 @@ function extractWindow(nq) {
 }
 
 function extractTopN(nq) {
-  const m = /\b(?:top|first|best)\s+(\d{1,2})\b/.exec(nq) || /\b(\d{1,2})\s+(?:top|most)\b/.exec(nq);
+  const m = /\b(?:top|first|best|last|recent|latest|next)\s+(\d{1,2})\b/.exec(nq) || /\b(\d{1,2})\s+(?:top|most)\b/.exec(nq);
   return m ? Math.min(Number(m[1]), 50) : 0;
 }
 
@@ -135,7 +135,8 @@ function extractType(nq) {
   return TYPE_WORDS[m[1]] || TYPE_WORDS[m[1].replace(/s$/, '')] || null;
 }
 
-const extractPhrase = (q) => (/["“']([^"”']{2,60})["”']/.exec(String(q)) || [])[1] || null;
+const extractPhrase = (q) => (/["“']([^"”']{2,60})["”']/.exec(String(q)) || [])[1]
+  || (/\b(?:about|mentioning)\s+([a-z0-9][\w .#/-]{1,40})/i.exec(String(q)) || [])[1] || null;
 
 function extractScanRef(nq) {
   let m = /\bscan\s*#(\d{1,6})\b/.exec(nq);
@@ -182,7 +183,7 @@ const isFollowUp = (nq) => /\b(and|also|what about|his|her|their|them|those|thes
 function priorUserText(messages) {
   const prior = messages.slice(0, -1)
     .filter((m) => m.role === 'user' && typeof m.content === 'string' && !m.content.startsWith('Tool-call limit'));
-  return prior.length ? prior[prior.length - 1] : null;
+  return prior.length ? prior[prior.length - 1].content : null;
 }
 
 // ---- window aggregates (same commit log the search tool reads) ---------------------------------
@@ -474,7 +475,8 @@ function compareSection(c) {
 
 function commitSearchSection(c) {
   const { scan, call, slots, report } = c;
-  const input = { scan_id: scan.id, limit: 15 };
+  const limit = slots.topN || 15;
+  const input = { scan_id: scan.id, limit };
   if (slots.dev) input.author = slots.dev.name;
   if (slots.win && slots.win.since) input.since = slots.win.since;
   if (slots.win && slots.win.until) input.until = slots.win.until;
@@ -489,20 +491,25 @@ function commitSearchSection(c) {
       bullets: ['Try a different author, date range or commit type.', `This scan holds ${num(report.commitLog.length)} commits in total.`],
     };
   }
+  const rows = r.commits.slice(0, limit);
   const byAuthor = {};
-  for (const cm of r.commits) byAuthor[cm.author] = (byAuthor[cm.author] || 0) + 1;
+  for (const cm of rows) byAuthor[cm.author] = (byAuthor[cm.author] || 0) + 1;
   const topAuthors = Object.entries(byAuthor).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const suffix = `${who}${where}${slots.type ? ` of type \`${slots.type}\`` : ''}${slots.phrase ? ` matching "${slots.phrase}"` : ''}`;
+  const headline = slots.topN && r.total > rows.length
+    ? `${num(rows.length)} newest of ${num(r.total)} commits${suffix}.`
+    : `${num(r.total)} commit${r.total === 1 ? '' : 's'}${suffix}.`;
   return {
-    headline: `${num(r.total)} commit${r.total === 1 ? '' : 's'}${who}${where}${slots.type ? ` of type \`${slots.type}\`` : ''}${slots.phrase ? ` matching "${slots.phrase}"` : ''}.`,
+    headline,
     bullets: [
       `Lines: +${num(r.additions)}/-${num(r.deletions)}.`,
       ...topAuthors.map(([a, n]) => `${a}: ${num(n)} commit${n === 1 ? '' : 's'} of the matches.`),
     ],
     table: {
       head: ['Date', 'Author', 'Type', 'Subject', 'Lines'],
-      rows: r.commits.slice(0, 15).map((cm) => [String(cm.date).slice(0, 10), cm.author, cm.type || '—', cm.subject, `${num(cm.additions)}/${num(cm.deletions)}`]),
+      rows: rows.map((cm) => [String(cm.date).slice(0, 10), cm.author, cm.type || '—', cm.subject, `${num(cm.additions)}/${num(cm.deletions)}`]),
     },
-    notes: [`Showing the ${Math.min(15, r.commits.length)} newest of ${num(r.total)} matching commits.`],
+    notes: [`Showing the ${num(rows.length)} newest of ${num(r.total)} matching commits.`],
   };
 }
 

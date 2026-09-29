@@ -117,8 +117,13 @@ async function ask(question, messages = [{ role: 'user', content: question }]) {
 
   // ---- commit search with an explicit window --------------------------------------------------------
   const cs = await ask('commits from 2025-01-06 to 2025-01-07');
-  assert.ok(/2 commits by Alice Smith/.test(cs.text), 'windowed commit search counts the two commits');
+  assert.ok(/2 commits in 2025-01-06 → 2025-01-07/.test(cs.text), 'windowed commit search counts the two commits');
+  assert.ok(cs.text.includes('Alice Smith'), 'windowed commit search names the author');
   assert.ok(cs.events.some((e) => e.type === 'tool' && e.name === 'search_commits'), 'search tool streamed');
+  const last3 = await ask('last 3 commits');
+  assert.ok(last3.text.includes('newest of 4 commits'), 'last N honored');
+  const about = await ask('commits about crash');
+  assert.ok(about.text.includes('matching "crash"') && /1 commit\b/.test(about.text), 'unquoted phrase search');
 
   // ---- compare with only one scan --------------------------------------------------------------------
   const cmp = await ask('what changed compared with the previous scan?');
@@ -171,6 +176,7 @@ async function ask(question, messages = [{ role: 'user', content: question }]) {
   assert.strictEqual(await agent.summarizeScan(scanId), sum, 'explicit smart mode uses the deterministic summary');
   saveSettings({ agent_mode: 'auto' });
 
+  db.close();
   fs.rmSync(dir, { recursive: true, force: true });
   console.log('smart agent test passed');
 })().catch((err) => {
