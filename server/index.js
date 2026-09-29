@@ -260,6 +260,6 @@ app.post('/api/chat', async (req, res) => {
 
 app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 3030;
 scheduler.reload();
 app.listen(PORT, () => console.log(`Git Insights running on http://localhost:${PORT}`));

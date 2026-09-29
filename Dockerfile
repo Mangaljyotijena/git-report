@@ -18,12 +18,12 @@ COPY public ./public
 RUN git config --system --add safe.directory '*'
 
 ENV NODE_ENV=production \
-    PORT=3000 \
+    PORT=3030 \
     DATA_DIR=/data
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME ["/data"]
-EXPOSE 3000
+EXPOSE 3030
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
   CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/api/status').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"

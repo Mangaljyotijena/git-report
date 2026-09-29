@@ -9,7 +9,7 @@ Contribution report for one or many git repositories, per developer (email). It 
 
 ```bash
 cp .env.example .env          # optional: APP_SECRET, ADMIN_PASSWORD, ANTHROPIC_API_KEY
-docker compose up -d --build  # http://localhost:3000
+docker compose up -d --build  # http://localhost:3030
 ```
 
 Without Docker (Node 22.13+ and git): `npm install && npm start`.

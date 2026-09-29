@@ -469,7 +469,7 @@ async function settings() {
         </div>
       </div>
       <div class="card"><h2>General</h2>
-        <label class="f">Public app URL <input type="url" name="app_url" value="${esc(s.app_url)}" placeholder="http://reports.internal:3000"><span class="hint">Used for links in emails.</span></label>
+        <label class="f">Public app URL <input type="url" name="app_url" value="${esc(s.app_url)}" placeholder="http://reports.internal:3030"><span class="hint">Used for links in emails.</span></label>
       </div>
       <div><button type="submit" class="btn primary">Save settings</button></div>
     </form>`;
