@@ -106,7 +106,7 @@ async function ask(question, messages = [{ role: 'user', content: question }]) {
   // ---- developer profile + follow-up ----------------------------------------------------------------
   const prof = await ask('alice');
   assert.ok(prof.text.includes('alice@acme.com'), 'profile shows the developer');
-  assert.ok(prof.text.includes('src/'), 'profile shows top areas');
+  assert.ok(prof.text.includes('Top areas: `src`'), 'profile shows top areas');
   const follow = [];
   follow.push({ role: 'user', content: 'alice' });
   await smart.run('alice', follow, {});

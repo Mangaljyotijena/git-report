@@ -315,7 +315,7 @@ function developerProfileSection(c) {
     bullets: [
       `${num(d.commits)} commits (${num(d.merges)} merges), ${lines(d)} — ${pctOf(d.shareOfChurn)} of all changed lines, ${pctOf(d.shareOfCommits)} of commits.`,
       `Active ${d.firstCommit || '?'} → ${d.lastCommit || '?'} · ${num(d.activeDays)} active days · longest streak ${num(d.longestStreakDays)} days · last commit ${ago(d.lastCommit)}.`,
-      `Unmerged work: ${num(d.unmergedCommits)} commit(s), ${num(d.unmerged && d.unmerged.additions)} additions.`,
+      `Unmerged work: ${num(d.unmerged ? d.unmerged.commits : 0)} commit(s), ${num(d.unmerged && d.unmerged.additions)} additions.`,
       `Large commits (1000+ lines): ${num(d.largeCommits)} · after-hours ${pctOf(d.afterHoursShare)} · weekends ${pctOf(d.weekendShare)}.`,
       `Top areas: ${(d.topDirectories || []).slice(0, 4).map((x) => `\`${x.directory}\``).join(', ') || '—'} · languages: ${(d.topLanguages || []).slice(0, 4).map((x) => x.language).join(', ') || '—'}.`,
       `Repositories: ${(d.repos || []).slice(0, 4).map((x) => `${x.name} (${num(x.commits)})`).join(', ') || '—'}.`,
@@ -531,7 +531,7 @@ function languagesSection(c) {
   const ov = c.call('get_overview', { scan_id: c.scan.id });
   if (!ov.languages.length) return { headline: 'No language data in this scan.' };
   return {
-    headline: `${num(ov.languages.length)} languages by changed lines.`,
+    headline: `${num(ov.languages.length)} language${ov.languages.length === 1 ? '' : 's'} by changed lines.`,
     bullets: [
       `${ov.languages[0].language} accounts for ${pctOf(ov.languages[0].share)} of all churn.`,
       `Top 3: ${ov.languages.slice(0, 3).map((l) => `${l.language} ${pctOf(l.share)}`).join(', ')}.`,
@@ -831,8 +831,9 @@ const INTENTS = [
       [/\bweekends?\b|\bsaturdays?\b|\bsundays?\b/, 5],
       [/\bafter hours\b|\bovernight\b|\bat night\b|\blate at night\b/, 5],
       [/\b(?:monday|tuesday|wednesday|thursday|friday)\b/, 5],
-      [/\bwhat time\b|\bhours\b/, 4],
-      [/\bwhen (?:do|does|did|are|is|was)\b/, (c.slots.dev || /\bcommit/.test(c.nq)) ? 0 : 4]), run: patternsSection },
+    [/\bwhat time\b|\bhours\b/, 4],
+    [/\bwhen\b[^.?!]{0,40}\b(?:active|busiest|team|everyone|people)\b/, (c.slots.dev || /\bcommit/.test(c.nq)) ? 0 : 6],
+    [/\bwhen (?:do|does|did|are|is|was)\b/, (c.slots.dev || /\bcommit/.test(c.nq)) ? 0 : 4]), run: patternsSection },
 
   { name: 'people', score: (c) => hit(c.nq,
       [/\binactive\b|\bdormant\b|\bstopped (?:committing|working|contributing)\b|\bno longer (?:committing|active|working)\b|\bhasn'?t committed\b|\bwho left\b|\bleft the (?:team|company|project)\b/, 5],
