@@ -558,17 +558,28 @@ async function assistant(convId) {
   const form = $('#composer');
   const ta = form.elements.q;
   ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
+  $$('#mode-seg button').forEach((b) => {
+    b.onclick = async () => {
+      await api('PUT', '/api/settings', { agent_mode: b.dataset.mode });
+      status.agentMode = b.dataset.mode;
+      $$('#mode-seg button').forEach((x) => x.classList.toggle('on', x === b));
+      ta.placeholder = composerPlaceholder();
+      ta.disabled = !agentAvailable();
+      $('button', form).disabled = !agentAvailable();
+      if (b.dataset.mode === 'claude' && !status.aiConfigured) toast('Claude needs an Anthropic API key — add one in Settings');
+    };
+  });
   form.onsubmit = async (e) => {
     e.preventDefault();
     const q = ta.value.trim();
-    if (!q) return;
+    if (!q || !agentAvailable()) return;
     ta.value = '';
     $('.empty', msgs)?.remove();
     add('user', esc(q));
-    const thinking = add('assistant', '<span class="muted typing">Thinking</span>');
+    const thinking = add('assistant', `<span class="muted typing">${thinkingLabel()}</span>`);
     $('button', form).disabled = true;
     try {
-      const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: q, conversationId: currentConv }) });
+      const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: q, conversationId: currentConv, mode: agentMode() }) });
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let buf = '';
@@ -595,7 +606,7 @@ async function assistant(convId) {
     } catch (err) {
       thinking.innerHTML = `<span class="del">${esc(err.message)}</span>`;
     } finally {
-      $('button', form).disabled = false;
+      $('button', form).disabled = !agentAvailable();
       ta.focus();
     }
   };
