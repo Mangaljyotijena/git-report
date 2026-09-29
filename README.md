@@ -2,7 +2,7 @@
 
 Contribution report for one or many git repositories, per developer (email). It comes in two forms:
 
-- **Git Insights web app** (below): configure repositories, schedule periodic scans, get reports by Gmail, and ask an AI assistant about the data.
+- **Git Insights web app** (below): configure repositories, schedule periodic scans, get reports by Gmail, and ask the assistant about the data — with Claude or with the built-in deterministic Smart agent.
 - **CLI** (further down): needs only Node 18+ and git, with no npm dependencies.
 
 ## Git Insights web app
@@ -17,16 +17,17 @@ Without Docker (Node 22.13+ and git): `npm install && npm start`.
 | Page | What it does |
 |---|---|
 | **Repositories** | Add HTTPS clone URLs (GitHub, GitLab, Bitbucket, …) with an optional access token, or local paths. Remote repos are cloned into the data volume, and every branch is fetched before each scan. |
-| **Schedules** | Cron-based periodic scans, e.g. every Monday 09:00 for the last 7 days. Each schedule sets its repositories, filters, time zone, recipients, and whether to add an AI summary. |
-| **Scans** | History of every scan, with its live log, the full interactive HTML report, **Email report** and **Generate AI summary**. |
+| **Schedules** | Cron-based periodic scans, e.g. every Monday 09:00 for the last 7 days. Each schedule sets its repositories, filters, time zone, recipients, and whether to include a summary. |
+| **Scans** | History of every scan, with its live log, the full interactive HTML report, **Email report** and **Generate summary**. |
 | **Dashboard** | Totals, insights, monthly activity, developers, unmerged branches, hotspots and knowledge silos for any finished scan. |
-| **Assistant** | A Claude agent that answers questions over all stored scans with tools (developers, branches, commit search, scan comparison) and can start new scans. |
+| **Assistant** | Answers questions over all stored scans with tools (developers, branches, commit search, scan comparison) and can start new scans. Switch between **Auto**, **Smart** and **Claude** in the page header. |
 | **Settings** | Gmail (address and [app password](https://myaccount.google.com/apppasswords)), default recipients, Anthropic API key, model and effort. |
 
 **Setup notes**
 
 - **Gmail**: turn on 2-Step Verification, create an app password, and enter it in Settings. Your normal Gmail password does not work. Use **Send test email** to check the setup.
 - **AI**: add an Anthropic API key in Settings (or `ANTHROPIC_API_KEY`). The default model is `claude-opus-5-5`. The agent sees report data only (names, emails, counts, commit subjects), never source code. Requests enable server-side refusal fallbacks (`fallbacks: "default"`).
+- **Assistant modes** (`agent_mode` setting, switchable in the Assistant header): `auto` (default) uses Claude when a key exists and otherwise the Smart agent, `smart` is the built-in deterministic agent — no API key, no LLM, every answer carries a "no AI used" provenance footer — and `claude` forces Claude (needs a key). Scan summaries and scheduled emails follow the same rule, so they work without a key too.
 - **Local repositories in Docker**: put them under `./repos` (or set `LOCAL_REPOS_DIR`). They are mounted read-only at `/repos`, so add them as `/repos/<name>`.
 - **Security**: tokens and passwords are stored AES-256-GCM encrypted with `APP_SECRET`. If it is not set, a key is generated in the data volume. Set `ADMIN_PASSWORD` to protect the UI with basic auth before exposing it on a network.
 - **Data**: SQLite database, clones and key live in the `git-insights-data` volume (`/data`). Scans run one at a time.
@@ -101,5 +102,5 @@ Run `node bin/git-report.js --help` for every option.
 ## Test
 
 ```bash
-npm test   # builds a throwaway repo covering the edge cases above and checks the numbers
+npm test   # smoke test on a throwaway repo, then the Smart agent test (intents, tools, mode dispatch)
 ```
