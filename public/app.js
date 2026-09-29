@@ -378,7 +378,7 @@ async function schedules() {
         <td class="small">${esc(describeCron(s.cron))}<div class="muted"><code>${esc(s.cron)}</code>${s.timezone ? ` ${esc(s.timezone)}` : ''}</div></td>
         <td class="small">${s.repo_ids.length ? esc(s.repo_ids.map((i) => repoName[i] || `#${i}`).join(', ')) : 'All enabled'}</td>
         <td class="small">${esc(s.since || 'full history')}</td>
-        <td class="small">${s.send_email ? `Email ${esc(s.recipients || '(default recipients)')}` : 'No email'}${s.ai_summary ? '<div class="muted">+ AI summary</div>' : ''}</td>
+        <td class="small">${s.send_email ? `Email ${esc(s.recipients || '(default recipients)')}` : 'No email'}${s.ai_summary ? '<div class="muted">+ summary</div>' : ''}</td>
         <td class="small">${when(s.last_run_at)}</td>
         <td class="num"><button class="btn small" data-run="${s.id}">Run now</button> <button class="btn small" data-edit="${s.id}">Edit</button> <button class="btn small danger" data-del="${s.id}">Delete</button></td></tr>`).join('')}</tbody>
     </table></div>` : '<div class="empty"><h2>No schedules</h2><p>Example: every Monday at 09:00, scan the last 7 days and email the team a summary.</p></div>'}</div>`;
@@ -425,7 +425,7 @@ function scheduleDialog(s, repoList) {
       </div>
       <div class="checks">
         <label class="check"><input type="checkbox" name="send_email" ${s.send_email ? 'checked' : ''}>Email the report</label>
-        <label class="check"><input type="checkbox" name="ai_summary" ${s.ai_summary ? 'checked' : ''}>Include AI summary</label>
+        <label class="check"><input type="checkbox" name="ai_summary" ${s.ai_summary ? 'checked' : ''}>Include summary</label>
         <label class="check"><input type="checkbox" name="enabled" ${s.enabled ? 'checked' : ''}>Enabled</label>
       </div>
       <label class="f">Recipients <input type="text" name="recipients" value="${esc(s.recipients || '')}" placeholder="Empty = default recipients from Settings"></label>
@@ -461,7 +461,7 @@ async function settings() {
         <div class="row" style="margin-top:12px"><input type="email" id="test-to" placeholder="Send test to…" style="max-width:260px"><button type="button" class="btn" id="test-mail">Send test email</button></div>
       </div>
       <div class="card"><h2>AI agent (Claude)</h2>
-        <p class="small muted" style="margin-top:-6px">Powers the assistant and the report summaries. Get a key at <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a>. The agent only sees report data from this app (numbers, names, emails, commit subjects), not source code.</p>
+        <p class="small muted" style="margin-top:-6px">Used by the assistant when its mode is Claude or Auto (with a key), and for AI summaries. Get a key at <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a>. The agent only sees report data from this app (numbers, names, emails, commit subjects), not source code. Without a key the app falls back to the deterministic Smart mode.</p>
         <div class="fields">
           <label class="f">Anthropic API key <input type="password" name="anthropic_api_key" value="${esc(s.anthropic_api_key)}" autocomplete="new-password" placeholder="sk-ant-…"></label>
           <label class="f">Model <select name="ai_model">
