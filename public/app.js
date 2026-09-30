@@ -83,7 +83,7 @@ async function refreshStatus() {
 }
 
 const routes = {
-  '': dashboard, assistant, scans, repos, schedules, settings,
+  '': dashboard, activity, assistant, scans, repos, schedules, settings,
 };
 let pollTimer;
 async function router() {
@@ -193,6 +193,127 @@ async function dashboard() {
     const r = await api('POST', `/api/scans/${scan.id}/summary`);
     $('#ai').innerHTML = md(r.ai_summary);
   }));
+}
+
+// ---- recent activity --------------------------------------------------------------------------------
+const WINDOWS = [[24, 'Last 24 hours'], [48, 'Last 48 hours'], [72, 'Last 3 days'], [168, 'Last 7 days']];
+const COMMIT_STATUS = { unmerged: ['not merged', 'warn'], unpushed: ['unpushed', 'bad'], merged: ['merged', 'good'], main: ['on main', 'info'] };
+const at = (iso) => new Date(iso).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+const ago = (iso) => {
+  const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000));
+  return m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
+};
+// A branch row can mix states, e.g. two commits merged today and one still open.
+const branchBadges = (b) => ['unmerged', 'unpushed', 'merged', 'main']
+  .filter((k) => b[k]).map((k) => badge(COMMIT_STATUS[k][0], COMMIT_STATUS[k][1])).join(' ');
+const actPref = (k, d) => { try { return localStorage.getItem(`gi-act-${k}`) ?? d; } catch (_) { return d; } };
+const actSave = (k, v) => { try { localStorage.setItem(`gi-act-${k}`, v); } catch (_) { /* private mode */ } };
+
+async function activity() {
+  const repoList = await api('GET', '/api/repos');
+  if (!repoList.length) {
+    view.innerHTML = '<div class="card empty"><h2>No repositories yet</h2><p>Add a repository to see what developers pushed recently.</p><a class="btn primary" href="#/repos">Add a repository</a></div>';
+    return;
+  }
+  const hours = Number(actPref('hours', 24));
+  const repoId = actPref('repo', '');
+  view.innerHTML = `
+    <div class="page-head">
+      <div><h1>Recent activity</h1><div class="sub">Commits pushed to any branch, per developer, with lines added and removed.</div></div>
+      <div class="row">
+        <select id="hours" aria-label="Time window">${WINDOWS.map(([h, l]) => `<option value="${h}" ${h === hours ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <select id="repo" aria-label="Repository"><option value="">All enabled repositories</option>${repoList.map((r) => `<option value="${r.id}" ${String(r.id) === repoId ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>
+        <button class="btn primary" id="refresh">Refresh</button>
+      </div>
+    </div>
+    <div id="act"></div>`;
+
+  let token = 0;
+  const load = async () => {
+    const mine = ++token;
+    const btn = $('#refresh');
+    btn.disabled = true;
+    $('#act').innerHTML = '<div class="card empty"><p class="muted typing">Fetching every branch</p></div>';
+    try {
+      const q = new URLSearchParams({ hours: $('#hours').value });
+      if ($('#repo').value) q.set('repo_ids', $('#repo').value);
+      const a = await api('GET', `/api/activity?${q}`);
+      if (mine !== token || !$('#act')) return; // a newer request, or the user navigated away
+      $('#act').innerHTML = renderActivity(a);
+      const search = $('#dev-search');
+      if (search) search.oninput = () => {
+        const q2 = search.value.trim().toLowerCase();
+        $$('.dev-card').forEach((c) => { c.hidden = q2 && !c.dataset.q.includes(q2); });
+      };
+    } catch (err) {
+      if (mine === token && $('#act')) $('#act').innerHTML = `<div class="card empty"><h2>Could not load activity</h2><p>${esc(err.message)}</p></div>`;
+    } finally {
+      if (mine === token && $('#refresh')) $('#refresh').disabled = false;
+    }
+  };
+  $('#hours').onchange = (e) => { actSave('hours', e.target.value); load(); };
+  $('#repo').onchange = (e) => { actSave('repo', e.target.value); load(); };
+  $('#refresh').onclick = load;
+  load();
+}
+
+function renderActivity(a) {
+  const t = a.totals;
+  const multiRepo = a.repositories.length > 1;
+  const span = `${new Date(a.since).toLocaleString()} → now`;
+  const warnings = a.warnings.length ? `<div class="card"><h2>Warnings</h2><ul class="insights">${a.warnings.map((w) => `<li>${badge('warn', 'warn')}<span>${esc(w)}</span></li>`).join('')}</ul></div>` : '';
+  if (!a.developers.length) {
+    return `${warnings}<div class="card empty"><h2>Nothing pushed in this window</h2><p>No commits on any branch since ${esc(new Date(a.since).toLocaleString())}.</p></div>`;
+  }
+
+  const devCard = (d) => `
+    <div class="card dev-card" data-q="${esc(`${d.name} ${d.email} ${d.otherEmails.join(' ')}`.toLowerCase())}">
+      <div class="dev-head">
+        <div class="who"><span class="avatar">${initials(d.name)}</span><div class="who-t"><div class="nm">${esc(d.name)}</div>
+          <div class="small muted">${esc([d.email, ...d.otherEmails].join(' · '))}</div></div></div>
+        <div class="dev-nums">
+          <div><strong>${plusMinus(d.additions, d.deletions)}</strong><span>lines</span></div>
+          <div><strong>${fmt(d.commits)}</strong><span>commits</span></div>
+          ${d.merges ? `<div><strong>${fmt(d.merges)}</strong><span>merges</span></div>` : ''}
+          <div><strong>${fmt(d.files)}</strong><span>files</span></div>
+          <div><strong>${fmt(d.branches.length)}</strong><span>${d.branches.length === 1 ? 'branch' : 'branches'}</span></div>
+          <div><strong>${ago(d.lastAt)}</strong><span>last commit</span></div>
+        </div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Branch</th><th>Status</th><th class="num">Commits</th><th class="num">Lines</th><th class="num">Last</th></tr></thead>
+        <tbody>${d.branches.map((b) => `<tr><td><code>${esc(b.branch)}</code>${multiRepo ? `<div class="small muted">${esc(b.repo)}</div>` : ''}</td>
+          <td>${branchBadges(b)}</td>
+          <td class="num">${fmt(b.commits)}${b.merges ? `<div class="small muted">+${fmt(b.merges)} merge${b.merges > 1 ? 's' : ''}</div>` : ''}</td>
+          <td class="num">${plusMinus(b.additions, b.deletions)}</td><td class="num small">${ago(b.lastAt)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <details class="commit-list"><summary>${fmt(d.log.length)} commit${d.log.length === 1 ? '' : 's'}</summary><div class="table-wrap"><table><tbody>
+        ${d.log.map((c) => `<tr>
+          <td class="small nowrap">${esc(at(c.date))}</td>
+          <td>${esc(c.subject)}${c.merge ? ` ${badge('merge', 'info')}` : ''}${c.rewritten ? ` <span class="small muted" title="Authored before this window, then rebased or cherry-picked in it">(rewritten)</span>` : ''}
+            <div class="small muted"><code>${esc(c.hash.slice(0, 8))}</code> ${badge(...COMMIT_STATUS[c.status])} ${c.branches.map(esc).join(', ')}${multiRepo ? ` · ${esc(c.repo)}` : ''}</div></td>
+          <td class="num">${c.merge ? '<span class="muted small">merge</span>' : `${plusMinus(c.additions, c.deletions)}<div class="small muted">${fmt(c.files)} file${c.files === 1 ? '' : 's'}</div>`}</td></tr>`).join('')}
+      </tbody></table></div></details>
+    </div>`;
+
+  return `
+    <div class="sub act-window">${esc(span)} · ${fmt(t.repos)} of ${fmt(a.repositories.length)} repositories active · updated ${esc(new Date(a.generatedAt).toLocaleTimeString())}</div>
+    <div class="grid stats">
+      ${stat('developers', fmt(t.developers), 'i-users')}${stat('commits', fmt(t.commits), 'i-git')}${stat('lines changed', plusMinus(t.additions, t.deletions), 'i-code')}
+      ${stat('files changed', fmt(t.files), 'i-code')}${stat('branches', fmt(t.branches), 'i-branch')}${stat('merges', fmt(t.merges), 'i-git')}${stat('not merged yet', fmt(t.unmergedCommits), 'i-alert')}
+    </div>
+    ${warnings}
+    <div class="row act-tools"><h2 class="grow">Developers</h2><input type="search" id="dev-search" placeholder="Filter by name or email" aria-label="Filter developers"></div>
+    ${a.developers.map(devCard).join('')}
+    <div class="card"><h2>Branches <span class="muted small">everyone's work per branch</span></h2><div class="table-wrap"><table>
+      <thead><tr><th>Branch</th><th>Status</th><th>Developers</th><th class="num">Commits</th><th class="num">Lines</th><th class="num">Last</th></tr></thead>
+      <tbody>${a.branches.map((b) => `<tr><td><code>${esc(b.branch)}</code>${multiRepo ? `<div class="small muted">${esc(b.repo)}</div>` : ''}</td><td>${branchBadges(b)}</td>
+        <td class="small">${esc(b.developers.join(', '))}</td><td class="num">${fmt(b.commits)}</td><td class="num">${plusMinus(b.additions, b.deletions)}</td><td class="num small">${ago(b.lastAt)}</td></tr>`).join('')}</tbody>
+    </table></div></div>
+    <p class="small muted">A commit on several branches is listed under each of them but counted once in the totals. The window uses the commit date, so work rebased or cherry-picked in it is included and marked “rewritten”.
+      ${t.duplicatesSkipped ? `${fmt(t.duplicatesSkipped)} duplicate cop${t.duplicatesSkipped === 1 ? 'y' : 'ies'} of the same change counted once.` : ''}
+      ${t.excludedLines ? `${fmt(t.excludedLines)} lines in lock files and build output not counted.` : ''}
+      ${t.botCommits ? `${fmt(t.botCommits)} bot commit${t.botCommits === 1 ? '' : 's'} hidden.` : ''}</p>`;
 }
 
 async function runScanDialog() {

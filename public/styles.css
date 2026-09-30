@@ -449,6 +449,26 @@ dialog h2 { font-size: 16.5px; margin-bottom: 16px; }
 .suggestions button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .typing::after { content: "…"; animation: pulse 0.8s infinite alternate; }
 
+/* ===== recent activity =============================================================== */
+.act-window { margin: -8px 0 14px; color: var(--muted); font-size: 13px; }
+.act-tools { margin: 22px 0 12px; }
+.act-tools h2 { margin: 0; }
+.act-tools input { max-width: 260px; }
+.dev-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.dev-nums { display: flex; gap: 22px; flex-wrap: wrap; }
+.dev-nums > div { display: flex; flex-direction: column; align-items: flex-end; }
+.dev-nums strong { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dev-nums span { font-size: 11.5px; color: var(--muted); }
+.commit-list { margin-top: 10px; }
+.commit-list summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--accent); padding: 6px 0; }
+.commit-list td { vertical-align: top; }
+.nowrap { white-space: nowrap; }
+@media (max-width: 560px) {
+  .dev-nums { gap: 14px; }
+  .dev-nums > div { align-items: flex-start; }
+  .act-tools input { max-width: none; }
+}
+
 /* ===== responsive ==================================================================== */
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }

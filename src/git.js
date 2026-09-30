@@ -295,5 +295,5 @@ async function blameOwnership(repo, ref, isExcluded, maxFiles, onProgress) {
 
 module.exports = {
   git, resolveRepo, fetchAll, findRepos, streamLog, detectMainRef, analyzeBranches, workingTreeChanges,
-  blameOwnership, normalizePath, parseRecord, sanitizeRemote, US,
+  blameOwnership, normalizePath, parseRecord, sanitizeRemote, displayBranch, pool, US,
 };

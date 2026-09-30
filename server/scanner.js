@@ -6,6 +6,8 @@ const { execFile } = require('child_process');
 const { db, DATA_DIR, decrypt, packReport } = require('./db');
 const { parseArgs } = require('../src/args');
 const { collectReport } = require('../src/collect');
+const { collectActivity } = require('../src/activity');
+const { pool } = require('../src/git');
 
 const CLONE_DIR = path.join(DATA_DIR, 'repos');
 fs.mkdirSync(CLONE_DIR, { recursive: true });
@@ -68,6 +70,52 @@ async function testRepo(repo) {
   return `Reachable, ${out.split('\n').filter(Boolean).length} branch(es).`;
 }
 
+function selectRepos(ids) {
+  const repos = ids.length
+    ? db.prepare(`SELECT * FROM repos WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids)
+    : db.prepare('SELECT * FROM repos WHERE enabled = 1').all();
+  if (!repos.length) throw new Error('No repositories configured. Add one on the Repositories page.');
+  return repos;
+}
+
+// ---- recent activity: live, outside the scan queue, reads only the requested window ---------------
+const activityInFlight = new Map(); // identical requests share one run
+
+function recentActivity({ repoIds = [], hours = 24, fetch = true, bots = false }) {
+  const key = JSON.stringify([[...repoIds].sort((a, b) => a - b), hours, fetch, bots]);
+  if (!activityInFlight.has(key)) {
+    activityInFlight.set(key, runActivity({ repoIds, hours, fetch, bots }).finally(() => activityInFlight.delete(key)));
+  }
+  return activityInFlight.get(key);
+}
+
+async function runActivity({ repoIds, hours, fetch, bots }) {
+  const repos = selectRepos(repoIds);
+  const warnings = [];
+  const inputs = [];
+  await pool(repos, 4, async (repo) => {
+    const dir = repoDir(repo);
+    if (fetch) {
+      try {
+        await syncRepo(repo, () => {});
+        db.prepare("UPDATE repos SET last_synced_at = datetime('now'), last_error = NULL WHERE id = ?").run(repo.id);
+      } catch (err) {
+        // A scan fetching the same clone holds git's lock; the last fetched refs are still useful.
+        if (!fs.existsSync(path.join(dir, '.git')) && repo.source !== 'local') {
+          warnings.push(`${repo.name}: sync failed, skipped (${err.message})`);
+          return;
+        }
+        warnings.push(`${repo.name}: fetch failed, showing the last fetched state (${err.message})`);
+      }
+    }
+    inputs.push({ dir, name: repo.name, main: repo.main_branch });
+  });
+  inputs.sort((a, b) => a.name.localeCompare(b.name));
+  const result = await collectActivity({ repos: inputs, hours, bots });
+  result.warnings.unshift(...warnings);
+  return result;
+}
+
 // ---- scan queue: one scan at a time so git and the CPU are not overloaded --------------------------
 let chain = Promise.resolve();
 const listeners = new Set(); // (scanId) => void, notified after each scan
@@ -92,11 +140,7 @@ async function executeScan(id) {
   db.prepare("UPDATE scans SET status = 'running', started_at = datetime('now') WHERE id = ?").run(id);
 
   try {
-    const ids = JSON.parse(scan.repo_ids);
-    const repos = ids.length
-      ? db.prepare(`SELECT * FROM repos WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids)
-      : db.prepare('SELECT * FROM repos WHERE enabled = 1').all();
-    if (!repos.length) throw new Error('No repositories configured. Add one on the Repositories page.');
+    const repos = selectRepos(JSON.parse(scan.repo_ids));
 
     const dirs = [];
     const labels = {};
@@ -150,4 +194,4 @@ function buildOpts(params, dirs, labels, repos) {
 // Recover scans interrupted by a restart.
 db.prepare("UPDATE scans SET status = 'failed', error = 'Interrupted by server restart' WHERE status IN ('queued', 'running')").run();
 
-module.exports = { queueScan, onScanFinished, testRepo, syncRepo, repoDir };
+module.exports = { queueScan, onScanFinished, testRepo, syncRepo, repoDir, recentActivity };

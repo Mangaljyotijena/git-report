@@ -643,4 +643,4 @@ function buildInsights({ summary, developers, heatmap, hotspots, silos, commitLo
   return out;
 }
 
-module.exports = { analyze, classifyCommit, busFactor, longestStreak, WEEKDAYS };
+module.exports = { analyze, classifyCommit, busFactor, longestStreak, buildIdentityResolver, normEmail, BOT_RE, WEEKDAYS };

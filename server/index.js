@@ -4,7 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const { db, encrypt, getSettings, saveSettings, loadReport } = require('./db');
-const { queueScan, testRepo, repoDir } = require('./scanner');
+const { queueScan, testRepo, repoDir, recentActivity } = require('./scanner');
 const scheduler = require('./scheduler');
 const agent = require('./agent');
 const { sendTestEmail, sendReportEmail } = require('./mailer');
@@ -222,6 +222,14 @@ app.post('/api/scans/:id/email', wrap(async (req, res) => {
 app.delete('/api/scans/:id', wrap((req, res) => {
   db.prepare("DELETE FROM scans WHERE id = ? AND status NOT IN ('queued', 'running')").run(id(req));
   res.json({ ok: true });
+}));
+
+// ---- recent activity ------------------------------------------------------------------------------
+// Live view of the last N hours on every branch: fetches the repos, then reads only that window.
+app.get('/api/activity', wrap(async (req, res) => {
+  const hours = Math.min(Math.max(Number(req.query.hours) || 24, 1), 24 * 31);
+  const repoIds = String(req.query.repo_ids || '').split(',').map(Number).filter(Boolean);
+  res.json(await recentActivity({ repoIds, hours, fetch: req.query.fetch !== '0', bots: req.query.bots === '1' }));
 }));
 
 // ---- settings -------------------------------------------------------------------------------------
