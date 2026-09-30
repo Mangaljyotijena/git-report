@@ -2,35 +2,63 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f4f6fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0d14" media="(prefers-color-scheme: dark)">
 <title>Git Insights</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='9' cy='8' r='4' fill='%233b6fd8'/><circle cx='9' cy='24' r='4' fill='%233b6fd8'/><circle cx='23' cy='14' r='4' fill='%231a9e5c'/><path d='M9 12v8M23 18c0 4-6 4-10 6' stroke='%233b6fd8' stroke-width='2.5' fill='none'/></svg>">
 <script>(function(){try{var t=localStorage.getItem('gi-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;}catch(e){}})();</script>
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+<a class="skip-link" href="#view">Skip to content</a>
+
+<header class="topbar">
+  <button class="icon-btn" id="menu-btn" type="button" aria-label="Open navigation" aria-controls="side" aria-expanded="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
+  <a class="brand brand-compact" href="#/">
+    <span class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><circle cx="6.5" cy="6" r="2.4"/><circle cx="6.5" cy="18" r="2.4"/><circle cx="17.5" cy="8" r="2.4"/><path d="M6.5 8.4v7.2M8.9 6.6h4.1a4 4 0 0 1 4 4"/></svg>
+    </span>
+    <span class="brand-text"><strong>Git Insights</strong></span>
+  </a>
+  <div class="grow"></div>
+  <button class="icon-btn theme-toggle" type="button" title="Switch colour theme" aria-label="Switch colour theme">
+    <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/></svg>
+    <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.4A8.4 8.4 0 0 1 9.6 4 8.6 8.6 0 1 0 20 14.4z"/></svg>
+  </button>
+</header>
+
+<div class="scrim" id="scrim" hidden></div>
+
 <div class="shell">
-  <nav class="side">
-    <a class="brand" href="#/">
-      <span class="logo" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><circle cx="6.5" cy="6" r="2.4"/><circle cx="6.5" cy="18" r="2.4"/><circle cx="17.5" cy="8" r="2.4"/><path d="M6.5 8.4v7.2M8.9 6.6h4.1a4 4 0 0 1 4 4"/></svg>
-      </span>
-      <span class="brand-text"><strong>Git Insights</strong><span>Contribution reports</span></span>
-    </a>
+  <nav class="side" id="side" aria-label="Main navigation">
+    <div class="side-head">
+      <a class="brand" href="#/">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="6.5" cy="6" r="2.4"/><circle cx="6.5" cy="18" r="2.4"/><circle cx="17.5" cy="8" r="2.4"/><path d="M6.5 8.4v7.2M8.9 6.6h4.1a4 4 0 0 1 4 4"/></svg>
+        </span>
+        <span class="brand-text"><strong>Git Insights</strong><span>Contribution reports</span></span>
+      </a>
+      <button class="icon-btn side-close" id="side-close" type="button" aria-label="Close navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
 
     <div class="nav-group">
       <div class="nav-label">Overview</div>
       <a href="#/" data-route="dashboard">
-        <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/></svg>
         Dashboard
       </a>
       <a href="#/activity" data-route="activity">
-        <svg viewBox="0 0 24 24"><path d="M3.8 12a8.2 8.2 0 1 0 2.4-5.8"/><path d="M3.8 4.2v4h4"/><path d="M12 7.6V12l3 1.9"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.8 12a8.2 8.2 0 1 0 2.4-5.8"/><path d="M3.8 4.2v4h4"/><path d="M12 7.6V12l3 1.9"/></svg>
         Last 24 hours
       </a>
       <a href="#/assistant" data-route="assistant">
-        <svg viewBox="0 0 24 24"><path d="M12 3.5l1.7 4.4 4.4 1.7-4.4 1.7L12 15.7l-1.7-4.4L5.9 9.6l4.4-1.7L12 3.5z"/><path d="M18.2 15.3l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2z"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l1.7 4.4 4.4 1.7-4.4 1.7L12 15.7l-1.7-4.4L5.9 9.6l4.4-1.7L12 3.5z"/><path d="M18.2 15.3l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2z"/></svg>
         Assistant
       </a>
     </div>
@@ -38,15 +66,15 @@
     <div class="nav-group">
       <div class="nav-label">Reports</div>
       <a href="#/scans" data-route="scans">
-        <svg viewBox="0 0 24 24"><path d="M3.5 12.5H7l2.2-5.6 3.6 11 2.3-5.4h5.4"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5H7l2.2-5.6 3.6 11 2.3-5.4h5.4"/></svg>
         Scans
       </a>
       <a href="#/repos" data-route="repos">
-        <svg viewBox="0 0 24 24"><path d="M4 6.4A2.4 2.4 0 0 1 6.4 4h3.2l1.8 2.4h6.2A2.4 2.4 0 0 1 20 8.8v8.8a2.4 2.4 0 0 1-2.4 2.4H6.4A2.4 2.4 0 0 1 4 17.6V6.4z"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.4A2.4 2.4 0 0 1 6.4 4h3.2l1.8 2.4h6.2A2.4 2.4 0 0 1 20 8.8v8.8a2.4 2.4 0 0 1-2.4 2.4H6.4A2.4 2.4 0 0 1 4 17.6V6.4z"/></svg>
         Repositories
       </a>
       <a href="#/schedules" data-route="schedules">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12.4" r="8.2"/><path d="M12 7.6v5l3.2 1.9"/><path d="M9.4 3.4 7.6 5.2M14.6 3.4l1.8 1.8"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12.4" r="8.2"/><path d="M12 7.6v5l3.2 1.9"/><path d="M9.4 3.4 7.6 5.2M14.6 3.4l1.8 1.8"/></svg>
         Schedules
       </a>
     </div>
@@ -54,35 +82,96 @@
     <div class="nav-group">
       <div class="nav-label">Workspace</div>
       <a href="#/settings" data-route="settings">
-        <svg viewBox="0 0 24 24"><path d="M4 7.5h7M15.5 7.5H20M4 16.5h3.5M12 16.5h8"/><circle cx="13" cy="7.5" r="2.3"/><circle cx="9.5" cy="16.5" r="2.3"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h7M15.5 7.5H20M4 16.5h3.5M12 16.5h8"/><circle cx="13" cy="7.5" r="2.3"/><circle cx="9.5" cy="16.5" r="2.3"/></svg>
         Settings
       </a>
     </div>
 
     <div class="side-foot" id="side-status"></div>
-    <button id="theme-toggle" class="theme-toggle" type="button" title="Switch colour theme">
-      <svg class="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/></svg>
-      <svg class="i-moon" viewBox="0 0 24 24"><path d="M20 14.4A8.4 8.4 0 0 1 9.6 4 8.6 8.6 0 1 0 20 14.4z"/></svg>
+    <button class="theme-toggle" id="theme-toggle" type="button" title="Switch colour theme">
+      <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/></svg>
+      <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.4A8.4 8.4 0 0 1 9.6 4 8.6 8.6 0 1 0 20 14.4z"/></svg>
       <span class="theme-label">Theme</span>
     </button>
   </nav>
-  <main id="view" class="view"></main>
+  <main id="view" class="view" tabindex="-1"></main>
 </div>
+
+<nav class="tabbar" aria-label="Sections">
+  <a href="#/" data-route="dashboard">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/></svg>
+    <span>Home</span>
+  </a>
+  <a href="#/activity" data-route="activity">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.8 12a8.2 8.2 0 1 0 2.4-5.8"/><path d="M3.8 4.2v4h4"/><path d="M12 7.6V12l3 1.9"/></svg>
+    <span>Activity</span>
+  </a>
+  <a href="#/assistant" data-route="assistant">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l1.7 4.4 4.4 1.7-4.4 1.7L12 15.7l-1.7-4.4L5.9 9.6l4.4-1.7L12 3.5z"/><path d="M18.2 15.3l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2z"/></svg>
+    <span>Assistant</span>
+  </a>
+  <a href="#/scans" data-route="scans">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5H7l2.2-5.6 3.6 11 2.3-5.4h5.4"/></svg>
+    <span>Scans</span>
+  </a>
+  <button type="button" id="more-btn" aria-label="More sections" aria-controls="side">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg>
+    <span>More</span>
+  </button>
+</nav>
+
 <dialog id="dialog"><form method="dialog" id="dialog-form"></form></dialog>
 <div id="toast" class="toast" hidden></div>
 <script>
 (function () {
-  var btn = document.getElementById('theme-toggle');
+  var toggles = [].slice.call(document.querySelectorAll('.theme-toggle'));
   function current() {
     var t = document.documentElement.dataset.theme;
     if (t) return t;
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
-  btn.addEventListener('click', function () {
-    var next = current() === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    try { localStorage.setItem('gi-theme', next); } catch (e) { /* private mode */ }
+  toggles.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var next = current() === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem('gi-theme', next); } catch (e) { /* private mode */ }
+    });
   });
+})();
+</script>
+<script>
+(function () {
+  var side = document.getElementById('side');
+  var scrim = document.getElementById('scrim');
+  var menuBtn = document.getElementById('menu-btn');
+  var closeBtn = document.getElementById('side-close');
+  var moreBtn = document.getElementById('more-btn');
+  var view = document.getElementById('view');
+  var tabbar = document.querySelector('.tabbar');
+
+  function setOpen(open, restoreFocus) {
+    side.classList.toggle('open', open);
+    scrim.hidden = !open;
+    document.body.classList.toggle('nav-open', open);
+    menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (view) view.inert = open;
+    if (tabbar) tabbar.inert = open;
+    if (open) {
+      var first = side.querySelector('a[href]');
+      if (first) first.focus();
+    } else if (restoreFocus) {
+      menuBtn.focus();
+    }
+  }
+  menuBtn.addEventListener('click', function () { setOpen(!side.classList.contains('open'), true); });
+  moreBtn.addEventListener('click', function () { setOpen(true, false); });
+  closeBtn.addEventListener('click', function () { setOpen(false, true); });
+  scrim.addEventListener('click', function () { setOpen(false, true); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && side.classList.contains('open')) setOpen(false, true);
+  });
+  side.addEventListener('click', function (e) { if (e.target.closest('a[href]')) setOpen(false, false); });
+  window.addEventListener('hashchange', function () { setOpen(false, false); });
 })();
 </script>
 <script src="/markdown.js"></script>

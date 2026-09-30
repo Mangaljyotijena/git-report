@@ -89,7 +89,12 @@ let pollTimer;
 async function router() {
   clearInterval(pollTimer);
   const [name, arg] = location.hash.replace(/^#\/?/, '').split('/');
-  $$('.side a').forEach((a) => a.classList.toggle('active', a.dataset.route === (name || 'dashboard')));
+  view.className = 'view'; // views opt back into layout modifiers (e.g. chat-page)
+  $$('[data-route]').forEach((a) => {
+    const on = a.dataset.route === (name || 'dashboard');
+    a.classList.toggle('active', on);
+    if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
   await refreshStatus();
   try {
     await (routes[name] || dashboard)(arg);
@@ -159,11 +164,11 @@ async function dashboard() {
       <div class="bar-axis"><span>${esc(tl[0]?.month || '')}</span><span>${esc(tl[tl.length - 1]?.month || '')}</span></div>
     </div>
     <div class="card"><h2>Developers</h2><div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Developer</th><th class="num">Commits</th><th class="num">Lines</th><th>Share</th><th class="num">Unmerged</th><th class="num">Active days</th><th class="num">Last commit</th></tr></thead>
-      <tbody>${devs.slice(0, 25).map((d) => `<tr><td class="muted">${d.rank}</td><td><div class="who"><span class="avatar">${initials(d.name)}</span><div class="who-t"><div class="nm">${esc(d.name)}</div><div class="small muted">${esc(d.email)}</div></div></div></td>
+      <thead><tr><th class="hide-sm">#</th><th>Developer</th><th class="num">Commits</th><th class="num">Lines</th><th>Share</th><th class="num">Unmerged</th><th class="num hide-sm">Active days</th><th class="num hide-sm">Last commit</th></tr></thead>
+      <tbody>${devs.slice(0, 25).map((d) => `<tr><td class="muted hide-sm">${d.rank}</td><td><div class="who"><span class="avatar">${initials(d.name)}</span><div class="who-t"><div class="nm">${esc(d.name)}</div><div class="small muted">${esc(d.email)}</div></div></div></td>
         <td class="num">${fmt(d.commits)}</td><td class="num">${plusMinus(d.additions, d.deletions)}</td>
         <td><div class="share" title="${d.shareOfChurn}% of changed lines"><span style="width:${(d.churn / maxChurn) * 100}%"></span></div></td>
-        <td class="num">${d.unmerged.commits ? fmt(d.unmerged.commits) : '<span class="muted">0</span>'}</td><td class="num">${fmt(d.activeDays)}</td><td class="num">${esc(d.lastCommit)}</td></tr>`).join('')}</tbody>
+        <td class="num">${d.unmerged.commits ? fmt(d.unmerged.commits) : '<span class="muted">0</span>'}</td><td class="num hide-sm">${fmt(d.activeDays)}</td><td class="num hide-sm">${esc(d.lastCommit)}</td></tr>`).join('')}</tbody>
     </table></div>${devs.length > 25 ? `<p class="small muted">${devs.length - 25} more in the full report.</p>` : ''}</div>
     <div class="grid two">
       <div class="card"><h2>Repositories</h2><div class="table-wrap"><table>
@@ -348,14 +353,14 @@ async function scans(scanId) {
   view.innerHTML = `
     <div class="page-head"><div><h1>Scans</h1><div class="sub">Every manual, scheduled and agent-started scan.</div></div><button class="btn primary" id="run">Run scan</button></div>
     <div class="card">${list.length ? `<div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Status</th><th>Trigger</th><th>Started</th><th>Filters</th><th class="num">Commits</th><th class="num">Devs</th><th>Email</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th>Status</th><th>Trigger</th><th>Started</th><th class="hide-sm">Filters</th><th class="num">Commits</th><th class="num">Devs</th><th class="hide-sm">Email</th><th></th></tr></thead>
       <tbody>${list.map((s) => `<tr>
         <td><a href="#/scans/${s.id}">#${s.id}</a></td><td>${badge(s.status)}</td>
         <td>${esc(s.trigger)}${s.schedule_id ? `<div class="small muted">${esc(schedName[s.schedule_id] || 'deleted schedule')}</div>` : ''}</td>
         <td class="small">${when(s.started_at || s.created_at)}</td>
-        <td class="small muted">${esc(s.params.since ? `since ${s.params.since}` : 'full history')}</td>
+        <td class="small muted hide-sm">${esc(s.params.since ? `since ${s.params.since}` : 'full history')}</td>
         <td class="num">${fmt(s.summary?.summary.commits)}</td><td class="num">${fmt(s.summary?.summary.developers)}</td>
-        <td class="small muted">${esc(s.email_status || '')}</td>
+        <td class="small muted hide-sm">${esc(s.email_status || '')}</td>
         <td class="num">${s.status === 'done' ? `<a class="btn small" href="/api/scans/${s.id}/html" target="_blank">Report</a>` : ''}</td></tr>`).join('')}</tbody>
     </table></div>` : '<div class="empty">No scans yet.</div>'}</div>`;
   $('#run').onclick = () => runScanDialog();
@@ -410,11 +415,11 @@ async function repos() {
   view.innerHTML = `
     <div class="page-head"><div><h1>Repositories</h1><div class="sub">Remote repos are cloned into the data volume and fetched before each scan.</div></div><button class="btn primary" id="add">Add repository</button></div>
     <div class="card">${list.length ? `<div class="table-wrap"><table>
-      <thead><tr><th>Name</th><th>Source</th><th>Main branch</th><th>Last synced</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th class="hide-sm">Source</th><th class="hide-sm">Main branch</th><th>Last synced</th><th>Status</th><th></th></tr></thead>
       <tbody>${list.map((r) => `<tr>
         <td><strong>${esc(r.name)}</strong></td>
-        <td class="small">${r.source === 'remote' ? `${esc(r.url)}${r.hasToken ? ' ' + badge('token', 'info') : ''}` : `<code>${esc(r.local_path)}</code> ${badge('local')}`}</td>
-        <td class="small">${esc(r.main_branch || 'auto')}</td>
+        <td class="small hide-sm">${r.source === 'remote' ? `${esc(r.url)}${r.hasToken ? ' ' + badge('token', 'info') : ''}` : `<code>${esc(r.local_path)}</code> ${badge('local')}`}</td>
+        <td class="small hide-sm">${esc(r.main_branch || 'auto')}</td>
         <td class="small">${when(r.last_synced_at)}</td>
         <td>${r.enabled ? badge('enabled', 'on') : badge('disabled')}${r.last_error ? `<div class="small del" title="${esc(r.last_error)}">${esc(r.last_error.slice(0, 80))}</div>` : ''}</td>
         <td class="num"><button class="btn small" data-edit="${r.id}">Edit</button> <button class="btn small danger" data-del="${r.id}">Delete</button></td></tr>`).join('')}</tbody>
@@ -493,12 +498,12 @@ async function schedules() {
   view.innerHTML = `
     <div class="page-head"><div><h1>Schedules</h1><div class="sub">Periodic scans that write a summary and email the report.</div></div><button class="btn primary" id="add">New schedule</button></div>
     <div class="card">${list.length ? `<div class="table-wrap"><table>
-      <thead><tr><th>Name</th><th>When</th><th>Repositories</th><th>Window</th><th>Delivery</th><th>Last run</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>When</th><th class="hide-sm">Repositories</th><th class="hide-sm">Window</th><th>Delivery</th><th>Last run</th><th></th></tr></thead>
       <tbody>${list.map((s) => `<tr>
         <td><strong>${esc(s.name)}</strong> ${s.enabled ? '' : badge('paused')}</td>
         <td class="small">${esc(describeCron(s.cron))}<div class="muted"><code>${esc(s.cron)}</code>${s.timezone ? ` ${esc(s.timezone)}` : ''}</div></td>
-        <td class="small">${s.repo_ids.length ? esc(s.repo_ids.map((i) => repoName[i] || `#${i}`).join(', ')) : 'All enabled'}</td>
-        <td class="small">${esc(s.since || 'full history')}</td>
+        <td class="small hide-sm">${s.repo_ids.length ? esc(s.repo_ids.map((i) => repoName[i] || `#${i}`).join(', ')) : 'All enabled'}</td>
+        <td class="small hide-sm">${esc(s.since || 'full history')}</td>
         <td class="small">${s.send_email ? `Email ${esc(s.recipients || '(default recipients)')}` : 'No email'}${s.ai_summary ? '<div class="muted">+ summary</div>' : ''}</td>
         <td class="small">${when(s.last_run_at)}</td>
         <td class="num"><button class="btn small" data-run="${s.id}">Run now</button> <button class="btn small" data-edit="${s.id}">Edit</button> <button class="btn small danger" data-del="${s.id}">Delete</button></td></tr>`).join('')}</tbody>
@@ -638,6 +643,7 @@ const thinkingLabel = () => (agentMode() === 'claude' && status.aiConfigured ? '
 
 async function assistant(convId) {
   currentConv = convId ? Number(convId) : null;
+  view.classList.add('chat-page');
   const convs = await api('GET', '/api/conversations');
   view.innerHTML = `
     <div class="page-head"><div><h1>Assistant</h1><div class="sub">Ask anything about your repositories, developers and scans.</div></div>
@@ -650,7 +656,9 @@ async function assistant(convId) {
         <div class="msgs" id="msgs"></div>
         <form class="composer" id="composer">
           <textarea name="q" rows="1" placeholder="${composerPlaceholder()}" ${agentAvailable() ? '' : 'disabled'}></textarea>
-          <button class="btn primary" type="submit" ${agentAvailable() ? '' : 'disabled'}>Send</button>
+          <button class="btn primary" type="submit" ${agentAvailable() ? '' : 'disabled'} aria-label="Send message">
+            <span>Send</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12h14M13 6.5 18.5 12 13 17.5"/></svg>
+          </button>
         </form>
       </div>
     </div>`;
@@ -681,6 +689,10 @@ async function assistant(convId) {
 
   const form = $('#composer');
   const ta = form.elements.q;
+  // The composer grows with the message up to a cap, then scrolls internally.
+  const grow = () => { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 150)}px`; };
+  ta.addEventListener('input', grow);
+  grow();
   ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
   $$('#mode-seg button').forEach((b) => {
     b.onclick = async () => {
@@ -698,6 +710,7 @@ async function assistant(convId) {
     const q = ta.value.trim();
     if (!q || !agentAvailable()) return;
     ta.value = '';
+    grow();
     $('.empty', msgs)?.remove();
     add('user', esc(q));
     const thinking = add('assistant', `<span class="muted typing">${thinkingLabel()}</span>`);
