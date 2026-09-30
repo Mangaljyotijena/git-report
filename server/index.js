@@ -7,6 +7,7 @@ const { db, encrypt, getSettings, saveSettings, loadReport } = require('./db');
 const { queueScan, testRepo, repoDir, recentActivity } = require('./scanner');
 const scheduler = require('./scheduler');
 const agent = require('./agent');
+const smart = require('./smart');
 const { sendTestEmail, sendReportEmail } = require('./mailer');
 const { renderHtml } = require('../src/reporters/html');
 
@@ -44,6 +45,7 @@ app.get('/api/status', wrap((req, res) => {
     schedules: db.prepare('SELECT COUNT(*) AS n FROM schedules WHERE enabled = 1').get().n,
     scans: db.prepare("SELECT COUNT(*) AS n FROM scans WHERE status = 'done'").get().n,
     running: db.prepare("SELECT COUNT(*) AS n FROM scans WHERE status IN ('queued', 'running')").get().n,
+    suggestions: smart.starterSuggestions(8),
   });
 }));
 

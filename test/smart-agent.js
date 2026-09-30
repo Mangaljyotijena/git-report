@@ -142,8 +142,8 @@ async function ask(question, messages = [{ role: 'user', content: question }]) {
 
   // ---- fallback ------------------------------------------------------------------------------------------
   const fb = await ask('zzz qqq wobble');
-  assert.ok(fb.text.includes('could not match'), 'gibberish falls back to examples');
-  assert.ok(fb.text.includes('no free-form reasoning'), 'fallback explains the limits');
+  assert.ok(fb.text.includes("don't have a report for that one yet"), 'gibberish falls back to a friendly reply');
+  assert.ok(/joke|math/.test(fb.text), 'fallback mentions the chat abilities');
 
   // ---- conversation persistence (chat entry point) -------------------------------------------------------
   const events = [];

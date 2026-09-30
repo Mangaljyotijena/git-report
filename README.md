@@ -29,6 +29,7 @@ Without Docker (Node 22.13+ and git): `npm install && npm start`.
 - **Gmail**: turn on 2-Step Verification, create an app password, and enter it in Settings. Your normal Gmail password does not work. Use **Send test email** to check the setup.
 - **AI**: add an Anthropic API key in Settings (or `ANTHROPIC_API_KEY`). The default model is `claude-opus-5-5`. The agent sees report data only (names, emails, counts, commit subjects), never source code. Requests enable server-side refusal fallbacks (`fallbacks: "default"`).
 - **Assistant modes** (`agent_mode` setting, switchable in the Assistant header): `auto` (default) uses Claude when a key exists and otherwise the Smart agent, `smart` is the built-in deterministic agent — no API key, no LLM, every answer carries a "no AI used" provenance footer — and `claude` forces Claude (needs a key). Scan summaries and scheduled emails follow the same rule, so they work without a key too.
+- **What the Smart agent handles**: report questions (overview, developers, branches, code health, trends, comparisons, commit and cross-scan history search), multi-turn follow-ups ("top 5 developers… and last month?", "alice" → "what about him?"), numbered clarifications for ambiguous names, typo tolerance, and casual chat (greetings, jokes, math, the time) plus a curated knowledge base for "how does X work" questions about git and this app.
 - **Local repositories in Docker**: put them under `./repos` (or set `LOCAL_REPOS_DIR`). They are mounted read-only at `/repos`, so add them as `/repos/<name>`.
 - **Security**: tokens and passwords are stored AES-256-GCM encrypted with `APP_SECRET`. If it is not set, a key is generated in the data volume. Set `ADMIN_PASSWORD` to protect the UI with basic auth before exposing it on a network.
 - **Data**: SQLite database, clones and key live in the `git-insights-data` volume (`/data`). Scans run one at a time.
@@ -103,5 +104,5 @@ Run `node bin/git-report.js --help` for every option.
 ## Test
 
 ```bash
-npm test   # smoke test on a throwaway repo, then the Smart agent test (intents, tools, mode dispatch)
+npm test   # smoke test, activity engine test, then the Smart agent suites (intents, tools, dialogue, chat, history)
 ```

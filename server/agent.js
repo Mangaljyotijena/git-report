@@ -34,6 +34,49 @@ function resolveSummaryMode() {
   return aiConfigured() ? 'claude' : 'smart';
 }
 
+// ---- conversation history hygiene --------------------------------------------------------------
+const HISTORY_LIMIT = 40;
+
+// Keep recent turns only: costs and latency grow with raw length, and the Smart agent only ever
+// reads the last couple of turns for follow-up context.
+function trimHistory(messages) {
+  if (!Array.isArray(messages) || messages.length <= HISTORY_LIMIT) return messages;
+  let cut = messages.length - HISTORY_LIMIT;
+  // Never start mid tool-loop: the first kept message must be a plain user question.
+  while (cut < messages.length && !(messages[cut].role === 'user' && typeof messages[cut].content === 'string')) cut++;
+  return messages.slice(cut);
+}
+
+// Smart-mode turns store synthetic tool_use blocks without matching tool_result, and older Claude
+// turns carry already-answered tool traffic. Replaying either to the API fails (400), so before a
+// Claude call we flatten history to alternating user questions and text-only assistant answers.
+function sanitizeForClaude(messages) {
+  const flat = [];
+  const push = (role, content) => {
+    const last = flat[flat.length - 1];
+    if (last && last.role === role) last.content = `${last.content}\n\n${content}`;
+    else flat.push({ role, content });
+  };
+  for (const m of messages) {
+    if (!m) continue;
+    if (m.role === 'user') {
+      if (typeof m.content === 'string') {
+        if (m.content.startsWith('Tool-call limit')) continue;
+        push('user', m.content);
+      } else if (Array.isArray(m.content)) {
+        // Tool results of an older loop: the text answer already follows them, so drop the traffic.
+      }
+      continue;
+    }
+    if (m.role !== 'assistant') continue;
+    const blocks = Array.isArray(m.content) ? m.content : [{ type: 'text', text: String(m.content ?? '') }];
+    const text = blocks.filter((b) => b.type === 'text').map((b) => b.text).join('\n\n').trim();
+    if (text) push('assistant', text);
+  }
+  while (flat.length && flat[0].role !== 'user') flat.shift();
+  return flat;
+}
+
 const SYSTEM_PROMPT = `You are the Git Insights agent inside a self-hosted app that scans git repositories and reports developer contributions and code health.
 
 You answer questions from engineering managers and developers using the tools, which read the stored scan reports (commits, lines changed, branches, unmerged work, hotspots, knowledge silos, activity patterns). Always fetch data with tools before stating numbers; never invent figures. If data is missing, say what is missing and, if useful, offer to start a scan.
@@ -47,10 +90,11 @@ How to read the data:
 Style: lead with the answer, then the supporting numbers. Use short markdown: headings only for long answers, bullet lists and small tables where they help. Mention the scan id and its date range when it matters.`;
 
 // ---- the agent loop --------------------------------------------------------------------------------
-async function runAgent(messages, { onEvent = () => {} } = {}) {
+async function runAgent(rawMessages, { onEvent = () => {} } = {}) {
   const settings = getSettings({ reveal: true });
   const anthropic = client();
   const system = `${SYSTEM_PROMPT}\n\nToday is ${new Date().toISOString().slice(0, 10)}.`;
+  const messages = sanitizeForClaude(rawMessages);
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const response = await anthropic.beta.messages.create({
@@ -127,16 +171,37 @@ async function chat(conversationId, question, onEvent, { mode } = {}) {
     const { lastInsertRowid } = db.prepare('INSERT INTO conversations (title) VALUES (?)').run(question.slice(0, 80));
     conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(lastInsertRowid));
   }
-  const messages = JSON.parse(conv.messages);
-  messages.push({ role: 'user', content: question });
+  const stored = trimHistory(JSON.parse(conv.messages));
+  const storedState = safeState(conv.state);
+  const messages = [...stored, { role: 'user', content: question }];
+  const state = JSON.parse(JSON.stringify(storedState));
   const effective = resolveChatMode(mode);
+  const save = (msgs, st) => db
+    .prepare("UPDATE conversations SET messages = ?, state = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(JSON.stringify(trimHistory(msgs)), JSON.stringify(st || {}), conv.id);
   try {
-    if (effective === 'claude') await runAgent(messages, { onEvent });
-    else await smart.run(question, messages, { onEvent });
-  } finally {
-    db.prepare("UPDATE conversations SET messages = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(messages), conv.id);
+    if (effective === 'claude') {
+      const out = await runAgent(messages, { onEvent });
+      save(out, storedState);
+      return { conversationId: conv.id, answer: lastAssistantText(out), mode: effective };
+    }
+    await smart.run(question, messages, { onEvent, state });
+    save(messages, state);
+    return { conversationId: conv.id, answer: lastAssistantText(messages), mode: effective };
+  } catch (err) {
+    // Never persist a user question that got no answer: the next turn would replay it unpaired.
+    save(stored, storedState);
+    throw err;
   }
-  return { conversationId: conv.id, answer: lastAssistantText(messages), mode: effective };
+}
+
+function safeState(raw) {
+  try {
+    const s = JSON.parse(raw || '{}');
+    return s && typeof s === 'object' ? s : {};
+  } catch (_) {
+    return {};
+  }
 }
 
 // Executive summary for a finished scan, used in the email and on the report page.
@@ -158,8 +223,8 @@ async function summarizeWithClaude(scanId) {
       + 'unmerged/stale work that needs attention, code-health risks (bus factor, silos, hotspots), and changes vs. the previous scan. '
       + 'End with 2-4 concrete recommended actions. Output only the summary in markdown, starting with a one-line headline in bold.',
   }];
-  await runAgent(messages);
-  return lastAssistantText(messages);
+  const out = await runAgent(messages);
+  return lastAssistantText(out);
 }
 
-module.exports = { chat, summarizeScan, toTranscript, aiConfigured, resolveChatMode, resolveSummaryMode, TOOLS };
+module.exports = { chat, summarizeScan, toTranscript, aiConfigured, resolveChatMode, resolveSummaryMode, sanitizeForClaude, trimHistory, TOOLS };

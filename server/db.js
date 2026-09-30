@@ -75,6 +75,11 @@ CREATE TABLE IF NOT EXISTS conversations (
 );
 `);
 
+// Dialogue state for the Smart agent (last intent, developer, window, scan, pending clarification).
+if (!db.prepare('PRAGMA table_info(conversations)').all().some((c) => c.name === 'state')) {
+  db.exec("ALTER TABLE conversations ADD COLUMN state TEXT NOT NULL DEFAULT '{}'");
+}
+
 // ---- secrets at rest -----------------------------------------------------------------------------
 // Tokens and passwords are AES-256-GCM encrypted with APP_SECRET (or a generated key file).
 function loadKey() {

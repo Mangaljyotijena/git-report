@@ -184,6 +184,82 @@ const TOOLS = [
     },
   },
   {
+    name: 'search_history',
+    description: 'Search commit logs across several recent scans at once — for questions that span time, such as when something was first touched or who worked on a topic over months. Filters are optional and combined with AND; results are newest first and tagged with scan_id.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        scan_count: { type: 'integer', description: 'How many recent scans to search, default 5, max 12' },
+        author: { type: 'string', description: 'Substring of author name or email' },
+        repo: { type: 'string' },
+        text: { type: 'string', description: 'Substring of the commit subject' },
+        type: { type: 'string', description: 'Commit type, e.g. feat, fix, docs' },
+        since: { type: 'string' },
+        until: { type: 'string' },
+        limit: { type: 'integer', description: 'Default 50, max 200' },
+      },
+      additionalProperties: false,
+    },
+    run: ({ scan_count: scanCount = 5, author, repo, text, type, since, until, limit = 50 }) => {
+      const cap = Math.min(Math.max(Number(limit) || 50, 1), 200);
+      const ids = db.prepare("SELECT id FROM scans WHERE status = 'done' ORDER BY id DESC LIMIT ?")
+        .all(Math.min(Math.max(Number(scanCount) || 5, 1), 12)).map((r) => r.id).reverse();
+      let rows = [];
+      for (const id of ids) {
+        const report = loadReport(id);
+        if (!report) continue;
+        const hits = (report.commitLog || [])
+          .filter((c) => (matches(c.author, author) || matches(c.email, author))
+            && matches(c.repo, repo) && matches(c.subject, text) && (!type || c.type === type)
+            && (!since || c.date.slice(0, 10) >= since) && (!until || c.date.slice(0, 10) <= until))
+          .map((c) => ({ ...c, scan_id: id, hash: c.hash.slice(0, 10), branches: c.merged ? undefined : c.branches }));
+        rows.push(...hits);
+      }
+      rows.sort((a, b) => (a.date < b.date ? 1 : -1));
+      const totals = rows.reduce((t, c) => ({ additions: t.additions + c.additions, deletions: t.deletions + c.deletions }), { additions: 0, deletions: 0 });
+      const oldest = rows.length ? rows[rows.length - 1] : null;
+      return {
+        scans_searched: ids, total: rows.length, ...totals,
+        oldest: oldest && { date: oldest.date, author: oldest.author, subject: oldest.subject, repo: oldest.repo, scan_id: oldest.scan_id, hash: oldest.hash },
+        commits: rows.slice(0, cap),
+      };
+    },
+  },
+  {
+    name: 'get_recent_activity',
+    description: 'Live git activity from the last N hours across repositories (fetches first unless fetch=false). Use for "what happened today" questions that need data newer than the last finished scan. Returns totals plus per-developer and per-branch summaries.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        hours: { type: 'integer', description: 'Look-back window in hours, default 24, max 744' },
+        repo_ids: { type: 'array', items: { type: 'integer' } },
+        fetch: { type: 'boolean', description: 'Fetch remotes first, default true' },
+      },
+      additionalProperties: false,
+    },
+    run: async ({ hours = 24, repo_ids: repoIds = [], fetch = true }) => {
+      const { recentActivity } = require('./scanner');
+      const r = await recentActivity({
+        repoIds: repoIds.map(Number).filter(Boolean),
+        hours: Math.min(Math.max(Number(hours) || 24, 1), 24 * 31),
+        fetch: fetch !== false,
+      });
+      return {
+        generatedAt: r.generatedAt, since: r.since, hours: r.hours, totals: r.totals, warnings: r.warnings,
+        repositories: r.repositories,
+        developers: (r.developers || []).slice(0, 25).map((d) => ({
+          name: d.name, commits: d.commits, merges: d.merges, additions: d.additions, deletions: d.deletions,
+          files: d.files, branches: d.branches,
+          recent: (d.log || []).slice(0, 5).map((c) => ({ date: c.date, subject: c.subject, repo: c.repo, merge: c.merge })),
+        })),
+        branches: (r.branches || []).slice(0, 20).map((b) => ({
+          name: b.name, repo: b.repo, commits: b.commits, additions: b.additions, deletions: b.deletions,
+          status: b.status, developers: b.developers,
+        })),
+      };
+    },
+  },
+  {
     name: 'start_scan',
     description: 'Queue a new scan (all enabled repositories unless repo_ids is given). It runs in the background; results appear in list_scans once finished. Only use when the user asks for fresh data.',
     input_schema: {

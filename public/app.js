@@ -626,6 +626,9 @@ const SUGGESTIONS = [
 ];
 let currentConv = null;
 
+// Starter questions come from the server's capability registry; the static list is the fallback.
+const starters = () => (status.suggestions && status.suggestions.length ? status.suggestions : SUGGESTIONS).slice(0, 6);
+
 const agentMode = () => status.agentMode || 'auto';
 const agentAvailable = () => agentMode() !== 'claude' || status.aiConfigured;
 const composerPlaceholder = () => (agentMode() === 'claude' && !status.aiConfigured)
@@ -664,7 +667,7 @@ async function assistant(convId) {
     }
   } else {
     msgs.innerHTML = `<div class="empty"><h2>What would you like to know?</h2><p>The agent reads your stored scans with tools and can start new scans.</p>
-      <div class="suggestions">${SUGGESTIONS.map((q) => `<button type="button">${esc(q)}</button>`).join('')}</div></div>`;
+      <div class="suggestions">${starters().map((q) => `<button type="button">${esc(q)}</button>`).join('')}</div></div>`;
     $$('.suggestions button', msgs).forEach((b) => { b.onclick = () => { $('#composer').elements.q.value = b.textContent; $('#composer').requestSubmit(); }; });
   }
 

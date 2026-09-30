@@ -10,7 +10,7 @@
     "start": "node --disable-warning=ExperimentalWarning server/index.js",
     "dev": "node --disable-warning=ExperimentalWarning --watch server/index.js",
     "report": "node bin/git-report.js",
-    "test": "node test/smoke.js && node test/activity.js && node test/smart-agent.js"
+    "test": "node test/smoke.js && node test/activity.js && node test/smart-agent.js && node test/smart-chat.js"
   },
   "engines": {
     "node": ">=22.13"
