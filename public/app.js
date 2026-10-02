@@ -278,8 +278,12 @@ const ACT_SORTS = [
   ['name', 'Developer', ''], ['commits', 'Commits', 'num'], ['lines', 'Lines', 'num'],
   ['files', 'Files', 'num hide-sm'], ['branches', 'Branches', 'num hide-sm'], ['last', 'Last', 'num'],
 ];
+// Sections of one developer's detail, shown as tabs.
+const DEV_TABS = [
+  ['overview', 'Overview'], ['repos', 'Repos'], ['branches', 'Branches'], ['files', 'Files'], ['commits', 'Commits'],
+];
 const wireLogButtons = (root = document) => $$('.log-more-btn', root).forEach((b) => {
-  b.onclick = () => { b.closest('details').querySelector('.log-more').hidden = false; b.remove(); };
+  b.onclick = () => { b.closest('.dev-log').querySelector('.log-more').hidden = false; b.remove(); };
 });
 
 function commitRow(c, multiRepo) {
@@ -290,18 +294,41 @@ function commitRow(c, multiRepo) {
           <td class="num">${c.merge ? '<span class="muted small">merge</span>' : `${plusMinus(c.additions, c.deletions)}<div class="small muted">${fmt(c.files)} file${c.files === 1 ? '' : 's'}</div>`}</td></tr>`;
 }
 
-function devDetailBody(a, d, sub) {
+// The developer's commits rolled up per repository for the Repos tab (each commit counted once).
+function devRepoRows(d) {
+  const rows = new Map();
+  for (const c of d.log) {
+    if (!rows.has(c.repo)) rows.set(c.repo, { repo: c.repo, commits: 0, merges: 0, additions: 0, deletions: 0, lastAt: null, unmerged: 0 });
+    const r = rows.get(c.repo);
+    if (c.merge) r.merges++; else r.commits++;
+    r.additions += c.additions;
+    r.deletions += c.deletions;
+    if (!r.lastAt || c.date > r.lastAt) r.lastAt = c.date;
+    if (!c.merge && (c.status === 'unmerged' || c.status === 'unpushed')) r.unmerged++;
+  }
+  return [...rows.values()].sort((x, y) => (y.additions + y.deletions) - (x.additions + x.deletions) || y.commits - x.commits);
+}
+
+function devDetailBody(a, d, sub, tab) {
   const multiRepo = a.repositories.length > 1;
   const shown = d.log.slice(0, LOG_CAP);
   const rest = d.log.slice(LOG_CAP);
   const files = d.topFiles || [];
   const churn = d.additions + d.deletions;
   const pct = Math.round((churn / Math.max(1, a.totals.additions + a.totals.deletions)) * 100);
+  const repoRows = devRepoRows(d);
+  const counts = { repos: repoRows.length, branches: d.branches.length, files: files.length, commits: d.log.length };
+  const active = DEV_TABS.some(([k]) => k === tab) ? tab : 'overview';
+  const tabs = DEV_TABS.map(([k, label]) => `<button type="button" class="dev-tab" role="tab" id="dev-tab-${k}" data-tab="${k}" aria-controls="dev-panel-${k}" aria-selected="${k === active}" tabindex="${k === active ? 0 : -1}">${label}${counts[k] == null ? '' : ` <span class="tab-n">${fmt(counts[k])}</span>`}</button>`).join('');
+  const panel = (k, cls, inner) => `<div class="dev-panel${cls ? ` ${cls}` : ''}" id="dev-panel-${k}" role="tabpanel" aria-labelledby="dev-tab-${k}" data-panel="${k}"${k === active ? '' : ' hidden'}>${inner}</div>`;
   return `
       <div class="dev-head">
         <div class="who"><span class="avatar">${initials(d.name)}</span><div class="who-t"><div class="nm">${esc(d.name)}</div>
           <div class="small muted dev-mail">${esc([d.email, ...d.otherEmails].join(' · '))}</div>
           <div class="small act-pos">${esc(sub)}</div></div></div>
+      </div>
+      <div class="dev-tabs" role="tablist" aria-label="Developer details">${tabs}</div>
+      ${panel('overview', '', `
         <div class="dev-nums">
           <div><strong>${plusMinus(d.additions, d.deletions)}</strong><span>lines</span></div>
           <div><strong>${fmt(d.commits)}</strong><span>commits</span></div>
@@ -311,27 +338,34 @@ function devDetailBody(a, d, sub) {
           <div><strong>${ago(d.lastAt)}</strong><span>last commit</span></div>
           <div><strong>${ago(d.firstAt)}</strong><span>first commit</span></div>
         </div>
-      </div>
-      <div class="dev-share">
-        <div class="share" title="${pct}% of the lines changed in this window"><span style="width:${Math.max(pct, 1)}%"></span></div>
-        <span class="small muted">${pct}% of all lines changed in this window</span>
-      </div>
-      <div class="table-wrap"><table>
+        <div class="dev-share">
+          <div class="share" title="${pct}% of the lines changed in this window"><span style="width:${Math.max(pct, 1)}%"></span></div>
+          <span class="small muted">${pct}% of all lines changed in this window</span>
+        </div>`)}
+      ${panel('repos', '', repoRows.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>Repository</th><th class="num">Commits</th><th class="num">Lines</th><th class="num">Last</th></tr></thead>
+        <tbody>${repoRows.map((r) => {
+          const main = (a.repositories.find((x) => x.name === r.repo) || {}).mainBranch;
+          return `<tr><td><code>${esc(r.repo)}</code>${main ? `<div class="small muted">${esc(main)}</div>` : ''}${r.unmerged ? `<div class="small muted">${fmt(r.unmerged)} commit${r.unmerged === 1 ? '' : 's'} not merged</div>` : ''}</td>
+            <td class="num">${fmt(r.commits)}${r.merges ? `<div class="small muted">+${fmt(r.merges)} merge${r.merges > 1 ? 's' : ''}</div>` : ''}</td>
+            <td class="num">${plusMinus(r.additions, r.deletions)}</td><td class="num small">${ago(r.lastAt)}</td></tr>`;
+        }).join('')}</tbody>
+      </table></div>` : `<p class="small muted">No repositories in this window.</p>`)}
+      ${panel('branches', '', `<div class="table-wrap"><table>
         <thead><tr><th>Branch</th><th>Status</th><th class="num">Commits</th><th class="num">Lines</th><th class="num">Last</th></tr></thead>
         <tbody>${d.branches.map((b) => `<tr><td><code>${esc(b.branch)}</code>${multiRepo ? `<div class="small muted">${esc(b.repo)}</div>` : ''}</td>
           <td>${branchBadges(b)}</td>
           <td class="num">${fmt(b.commits)}${b.merges ? `<div class="small muted">+${fmt(b.merges)} merge${b.merges > 1 ? 's' : ''}</div>` : ''}</td>
           <td class="num">${plusMinus(b.additions, b.deletions)}</td><td class="num small">${ago(b.lastAt)}</td></tr>`).join('')}</tbody>
-      </table></div>
-      ${files.length ? `<details class="commit-list"><summary>Top ${files.length} changed file${files.length === 1 ? '' : 's'}</summary><div class="table-wrap"><table>
+      </table></div>`)}
+      ${panel('files', 'commit-list', files.length ? `<div class="dev-panel-h">Top ${files.length} changed file${files.length === 1 ? '' : 's'}</div><div class="table-wrap"><table>
         <thead><tr><th>File</th><th class="num">Commits</th><th class="num">Lines</th></tr></thead>
         <tbody>${files.map((f) => `<tr><td><code>${esc(f.path)}</code>${multiRepo ? `<div class="small muted">${esc(f.repo)}</div>` : ''}</td>
           <td class="num">${fmt(f.commits)}</td><td class="num">${plusMinus(f.additions, f.deletions)}</td></tr>`).join('')}</tbody>
-      </table></div></details>` : ''}
-      <details class="commit-list"><summary>${fmt(d.log.length)} commit${d.log.length === 1 ? '' : 's'}</summary>
+      </table></div>` : `<p class="small muted">No changed files recorded in this window.</p>`)}
+      ${panel('commits', 'commit-list dev-log', `<div class="dev-panel-h">${fmt(d.log.length)} commit${d.log.length === 1 ? '' : 's'}</div>
         <div class="table-wrap"><table><tbody>${shown.map((c) => commitRow(c, multiRepo)).join('')}</tbody>${rest.length ? `<tbody class="log-more" hidden>${rest.map((c) => commitRow(c, multiRepo)).join('')}</tbody>` : ''}</table></div>
-        ${rest.length ? `<button type="button" class="btn small log-more-btn">Show ${fmt(rest.length)} more</button>` : ''}
-      </details>`;
+        ${rest.length ? `<button type="button" class="btn small log-more-btn">Show ${fmt(rest.length)} more</button>` : ''}`)}`;
 }
 
 function activityFootnote(t) {
@@ -386,7 +420,7 @@ function devListPane() {
       </table></div>
       <p class="small muted dev-list-empty" id="dev-empty" hidden></p>
     </div>
-    <p class="small muted act-hint">Select a developer to see their branches, code changes and commits in this window.</p>`;
+    <p class="small muted act-hint">Select a developer to see their repositories, branches, code changes and commits in this window.</p>`;
 }
 
 function devRow(a, i) {
@@ -406,7 +440,7 @@ function devRow(a, i) {
     </tr>`;
 }
 
-function devDetailPane(a, i, order) {
+function devDetailPane(a, i, order, tab) {
   const d = a.developers[i];
   const pos = order.indexOf(i);
   const windowLabel = a.hours >= 24 ? `${a.hours / 24}-day window` : `${a.hours}-hour window`;
@@ -420,7 +454,7 @@ function devDetailPane(a, i, order) {
         <button type="button" class="btn small" id="dev-next"${pos >= order.length - 1 ? ' disabled' : ''}>Next ›</button>
       </div>
     </div>
-    <div class="card dev-detail">${devDetailBody(a, d, sub)}</div>`;
+    <div class="card dev-detail">${devDetailBody(a, d, sub, tab)}</div>`;
 }
 
 // The pane swaps between the developer list and one developer's detail without touching the router.
@@ -433,6 +467,7 @@ function wireActivity(a) {
   let openIdx = null;
   let lastIdx = 0;
   let savedScroll = 0;
+  let activeTab = 'overview'; // the detail's tabs keep their place while stepping through developers
 
   const searchable = (d) => `${d.name} ${d.email} ${d.otherEmails.join(' ')}`.toLowerCase();
   const value = (d, k) => (k === 'name' ? d.name.toLowerCase()
@@ -568,13 +603,40 @@ function wireActivity(a) {
     if (pdfBtn) pdfBtn.onclick = () => exportList(pdfBtn, 'pdf');
   };
 
+  // Tabs of the detail pane: click or arrow keys switch, panels swap with aria-selected.
+  const wireTabs = () => {
+    const tabs = $$('.dev-tab', pane);
+    const select = (key) => {
+      activeTab = DEV_TABS.some(([k]) => k === key) ? key : 'overview';
+      tabs.forEach((t) => {
+        const on = t.dataset.tab === activeTab;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+      });
+      $$('.dev-panel', pane).forEach((p) => { p.hidden = p.dataset.panel !== activeTab; });
+    };
+    tabs.forEach((t, i) => {
+      t.onclick = () => select(t.dataset.tab);
+      t.onkeydown = (e) => {
+        const dir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+        if (!dir && e.key !== 'Home' && e.key !== 'End') return;
+        e.preventDefault();
+        const next = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (i + dir + tabs.length) % tabs.length;
+        select(tabs[next].dataset.tab);
+        tabs[next].focus();
+      };
+    });
+    select(activeTab);
+  };
+
   const openDetail = (i) => {
     if (!a.developers[i]) return;
     if (openIdx === null) savedScroll = window.scrollY || 0;
     lastIdx = i;
     openIdx = i;
-    pane.innerHTML = devDetailPane(a, i, order());
+    pane.innerHTML = devDetailPane(a, i, order(), activeTab);
     wireLogButtons();
+    wireTabs();
     const back = $('#dev-back');
     back.onclick = closeDetail;
     back.focus({ preventScroll: true });

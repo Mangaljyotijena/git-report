@@ -101,9 +101,13 @@ const thSorts = ['name', 'commits', 'lines', 'files', 'branches', 'last'].map((k
   return { dataset: { sort: key }, onclick: null, onkeydown: null, _th: th, _ind: ind, closest: (s) => (s === 'th' ? th : null), querySelector: (s) => (s === '.sort-ind' ? ind : null) };
 });
 let focusedSel = null;
+const devTabs = ['overview', 'repos', 'branches', 'files', 'commits'].map((k) => mkEl({ dataset: { tab: k } }));
+const devPanels = ['overview', 'repos', 'branches', 'files', 'commits'].map((k) => mkEl({ dataset: { panel: k } }));
 const paneEl = mkEl({
   querySelector: (sel) => { focusedSel = sel; return mkEl(); },
-  querySelectorAll: (sel) => (sel === '.th-sort' ? thSorts : []),
+  querySelectorAll: (sel) => (sel === '.th-sort' ? thSorts
+    : sel === '.dev-tab' ? devTabs
+      : sel === '.dev-panel' ? devPanels : []),
 });
 elements.set('#dev-pane', paneEl);
 
@@ -294,6 +298,34 @@ const clickRow = (i) => getEl('#dev-rows').onclick({ target: { closest: (sel) =>
   assert.strictEqual((hidden[1].match(/<tr>/g) || []).length, 10, 'only the overflow sits in the hidden section');
   assert.strictEqual((detail.match(/deadbeef/g) || []).length, 60, 'every commit of the window is rendered');
 
+  // -- the detail is split into tabs --------------------------------------------------------------------
+  assert.ok(detail.includes('role="tablist"'), 'the detail is a tab list');
+  for (const [k, label] of [['overview', 'Overview'], ['repos', 'Repos'], ['branches', 'Branches'], ['files', 'Files'], ['commits', 'Commits']]) {
+    assert.ok(detail.includes(`data-tab="${k}"`), `the ${label} tab`);
+    assert.ok(detail.includes(`id="dev-panel-${k}" role="tabpanel"`), `the ${label} panel`);
+  }
+  assert.ok(detail.includes('data-tab="overview" aria-controls="dev-panel-overview" aria-selected="true" tabindex="0"'), 'Overview opens');
+  assert.ok(detail.includes('aria-controls="dev-panel-commits" aria-selected="false" tabindex="-1"'), 'the other tabs wait their turn');
+  assert.ok(detail.includes('data-panel="overview">'), 'the overview panel is visible');
+  assert.ok(detail.includes('data-panel="repos" hidden'), 'the other panels start hidden');
+  assert.ok(detail.includes('>Branches <span class="tab-n">1</span>'), 'the tab counts the branches');
+  assert.ok(detail.includes('>Commits <span class="tab-n">60</span>'), 'and the commits');
+  assert.ok(detail.includes('>Repos <span class="tab-n">1</span>'), 'and the repositories');
+  assert.ok(detail.includes('<code>demo</code>'), 'the repository row is rendered');
+  assert.ok(detail.includes('60 commits not merged'), 'with what is still open on it');
+
+  // switching tabs
+  devTabs.find((t) => t.dataset.tab === 'branches').onclick();
+  assert.strictEqual(devTabs.find((t) => t.dataset.tab === 'branches').getAttribute('aria-selected'), 'true', 'Branches activates');
+  assert.strictEqual(devTabs.find((t) => t.dataset.tab === 'overview').getAttribute('aria-selected'), 'false', 'Overview steps aside');
+  assert.strictEqual(devPanels.find((p) => p.dataset.panel === 'branches').hidden, false, 'the branches panel shows');
+  assert.strictEqual(devPanels.find((p) => p.dataset.panel === 'overview').hidden, true, 'the overview panel hides');
+  devTabs.find((t) => t.dataset.tab === 'branches').onkeydown({ key: 'ArrowRight', preventDefault() { this.prevented = true; } });
+  assert.strictEqual(devTabs.find((t) => t.dataset.tab === 'files').getAttribute('aria-selected'), 'true', 'ArrowRight moves to Files');
+  assert.ok(devTabs.find((t) => t.dataset.tab === 'files').focused, 'and focuses it');
+  devTabs.find((t) => t.dataset.tab === 'files').onkeydown({ key: 'End', preventDefault() {} });
+  assert.strictEqual(devTabs.find((t) => t.dataset.tab === 'commits').getAttribute('aria-selected'), 'true', 'End jumps to Commits');
+
   // -- the button reveals the rest -----------------------------------------------------------------------
   assert.ok(!moreBtn.removed, 'the button was wired up when the detail mounted');
   moreBtn.onclick();
@@ -305,6 +337,8 @@ const clickRow = (i) => getEl('#dev-rows').onclick({ target: { closest: (sel) =>
   const bob = paneEl.innerHTML;
   assert.ok(bob.includes('Bob Builder'), 'the next developer is shown');
   assert.ok(bob.includes('2 of 2 developers'), 'the position moved');
+  assert.strictEqual(devTabs.find((t) => t.dataset.tab === 'commits').getAttribute('aria-selected'), 'true', 'the open tab is kept while stepping');
+  assert.strictEqual(devPanels.find((p) => p.dataset.panel === 'commits').hidden, false, 'with its panel showing');
   assert.ok(bob.includes('id="dev-next" disabled'), 'the last developer has no next');
   assert.ok(bob.includes('README.md'), "the developer's own changed files");
   assert.strictEqual((bob.match(/deadbeef/g) || []).length, 0, "not the previous developer's commits");

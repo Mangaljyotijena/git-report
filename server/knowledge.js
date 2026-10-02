@@ -92,7 +92,7 @@ const ARTICLES = [
       'Pick a window of 24 hours, 48 hours, 3 days, 7 days, 15 days or 30 days (31 days is the maximum; older history belongs in a scan), plus one repository or all of them.',
       'The page opens on a developer list — sortable by commits, lines, files, branches or last commit, and filterable by name or email — with the window totals above it.',
       'Export PNG or Export PDF saves that list exactly as you see it: the current sort and filter, the window context, the totals row and the footnote. PDFs are paginated A4 landscape.',
-      'Select a developer to open their detail: commits, lines added and removed, files touched, the branches they worked on, their biggest changed files, and the full commit list. Previous/next steps through the list and Esc (or the back button) returns to it.',
+      'Select a developer to open their detail, which is split into tabs: Overview (totals and the share of lines changed), Repos (each repository rolled up with what is still unmerged), Branches (with their status), Files (the biggest changed files) and Commits (the full list). Previous/next steps through the list and Esc (or the back button) returns to it; the tab you opened stays open while you step between developers.',
       'Each branch row is marked not merged, merged (naming the branch it came from) or on main, so long-lived feature branches stay visible.',
     ],
     note: 'Open Activity in the sidebar, or ask Claude-mode "who committed in the last 15 days?" for the same data live.',
