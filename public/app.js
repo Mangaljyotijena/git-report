@@ -204,6 +204,7 @@ async function dashboard() {
 const WINDOWS = [
   [1, 'Last 24 hours'], [2, 'Last 48 hours'], [3, 'Last 3 days'],
   [7, 'Last 7 days'], [15, 'Last 15 days'], [30, 'Last 30 days'],
+  [90, 'Last 90 days'], [180, 'Last 180 days'], [365, 'Last 365 days'],
 ];
 const LOG_CAP = 50; // commits shown per developer before the "show more" button
 const COMMIT_STATUS = { unmerged: ['not merged', 'warn'], unpushed: ['unpushed', 'bad'], merged: ['merged', 'good'], main: ['on main', 'info'] };

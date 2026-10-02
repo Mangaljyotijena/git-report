@@ -6,12 +6,12 @@ const { git, resolveRepo, streamLog, detectMainRef, displayBranch, pool, US } = 
 const { buildIdentityResolver, normEmail, BOT_RE } = require('./analyze');
 
 const HOUR_MS = 3600000;
-const MAX_WINDOW_DAYS = 31; // beyond this a full scan (not a live window) is the right tool
+const MAX_WINDOW_DAYS = 365; // beyond this a full scan (not a live window) is the right tool
 const lines = (s) => s.split('\n').map((l) => l.trim()).filter(Boolean);
 const inc = (map, key) => map.set(key, (map.get(key) || 0) + 1);
 const topKey = (map) => [...map.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
 
-// A window request from the UI or the API: "days=15" (preferred) or "hours=360" -> hours, 1..31 days.
+// A window request from the UI or the API: "days=15" (preferred) or "hours=360" -> hours, 1..365 days.
 function activityHours(days, hours) {
   const d = days === undefined || days === null || days === '' ? NaN : Number(days);
   if (Number.isFinite(d)) return Math.min(Math.max(Math.round(d), 1), MAX_WINDOW_DAYS) * 24;

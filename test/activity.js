@@ -135,7 +135,10 @@ git(['checkout', '-q', 'main']);
   assert.strictEqual(activityHours(7), 168);
   assert.strictEqual(activityHours('15'), 360);
   assert.strictEqual(activityHours(30), 720);
-  assert.strictEqual(activityHours(999), MAX_WINDOW_DAYS * 24, 'capped at 31 days');
+  assert.strictEqual(activityHours(90), 2160);
+  assert.strictEqual(activityHours(180), 4320);
+  assert.strictEqual(activityHours(365), 8760);
+  assert.strictEqual(activityHours(999), MAX_WINDOW_DAYS * 24, 'capped at 365 days');
   assert.strictEqual(activityHours(null, 48), 48, 'hours still work');
   assert.strictEqual(activityHours(undefined, null), 24, 'default window');
 

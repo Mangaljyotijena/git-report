@@ -227,12 +227,12 @@ const TOOLS = [
   },
   {
     name: 'get_recent_activity',
-    description: 'Live git activity from the last N days (or hours) across repositories (fetches first unless fetch=false). Use for "what happened in the last 7/15/30 days" questions that need data newer than the last finished scan. Returns totals, per-developer totals with their top changed files, and per-branch summaries with lines added and removed.',
+    description: 'Live git activity from the last N days (or hours) across repositories (fetches first unless fetch=false). Use for "what happened in the last 7/15/30 days" questions that need data newer than the last finished scan (windows up to 365 days are supported). Returns totals, per-developer totals with their top changed files, and per-branch summaries with lines added and removed.',
     input_schema: {
       type: 'object',
       properties: {
-        days: { type: 'integer', description: 'Look-back window in days, e.g. 7, 15 or 30. Max 31. Ignored when hours is given.' },
-        hours: { type: 'integer', description: 'Look-back window in hours, default 24, max 744' },
+        days: { type: 'integer', description: 'Look-back window in days, e.g. 7, 15, 30, 90, 180 or 365. Max 365. Ignored when hours is given.' },
+        hours: { type: 'integer', description: 'Look-back window in hours, default 24, max 8760' },
         repo_ids: { type: 'array', items: { type: 'integer' } },
         fetch: { type: 'boolean', description: 'Fetch remotes first, default true' },
       },

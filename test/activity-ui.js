@@ -163,7 +163,7 @@ const clickRow = (i) => getEl('#dev-rows').onclick({ target: { closest: (sel) =>
   await ctx.activity();
   await flush();
   const head = getEl('#view').innerHTML;
-  for (const label of ['Last 7 days', 'Last 15 days', 'Last 30 days']) {
+  for (const label of ['Last 7 days', 'Last 15 days', 'Last 30 days', 'Last 90 days', 'Last 180 days', 'Last 365 days']) {
     assert.ok(head.includes(`>${label}</option>`), `${label} offered as a window`);
   }
   assert.ok(requests.some((u) => u.includes('/api/activity?days=1')), 'default window sent as days=1: ' + requests.join(' '));
