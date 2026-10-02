@@ -10,6 +10,7 @@ const agent = require('./agent');
 const smart = require('./smart');
 const { sendTestEmail, sendReportEmail } = require('./mailer');
 const { renderHtml } = require('../src/reporters/html');
+const { activityHours } = require('../src/activity');
 
 const app = express();
 app.disable('x-powered-by');
@@ -227,9 +228,9 @@ app.delete('/api/scans/:id', wrap((req, res) => {
 }));
 
 // ---- recent activity ------------------------------------------------------------------------------
-// Live view of the last N hours on every branch: fetches the repos, then reads only that window.
+// Live view of the last N days (or hours) on every branch: fetches the repos, then reads only that window.
 app.get('/api/activity', wrap(async (req, res) => {
-  const hours = Math.min(Math.max(Number(req.query.hours) || 24, 1), 24 * 31);
+  const hours = activityHours(req.query.days, req.query.hours);
   const repoIds = String(req.query.repo_ids || '').split(',').map(Number).filter(Boolean);
   res.json(await recentActivity({ repoIds, hours, fetch: req.query.fetch !== '0', bots: req.query.bots === '1' }));
 }));

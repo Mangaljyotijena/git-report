@@ -201,7 +201,11 @@ async function dashboard() {
 }
 
 // ---- recent activity --------------------------------------------------------------------------------
-const WINDOWS = [[24, 'Last 24 hours'], [48, 'Last 48 hours'], [72, 'Last 3 days'], [168, 'Last 7 days']];
+const WINDOWS = [
+  [1, 'Last 24 hours'], [2, 'Last 48 hours'], [3, 'Last 3 days'],
+  [7, 'Last 7 days'], [15, 'Last 15 days'], [30, 'Last 30 days'],
+];
+const LOG_CAP = 50; // commits shown per developer before the "show more" button
 const COMMIT_STATUS = { unmerged: ['not merged', 'warn'], unpushed: ['unpushed', 'bad'], merged: ['merged', 'good'], main: ['on main', 'info'] };
 const at = (iso) => new Date(iso).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
 const ago = (iso) => {
@@ -220,13 +224,16 @@ async function activity() {
     view.innerHTML = '<div class="card empty"><h2>No repositories yet</h2><p>Add a repository to see what developers pushed recently.</p><a class="btn primary" href="#/repos">Add a repository</a></div>';
     return;
   }
-  const hours = Number(actPref('hours', 24));
+  const savedDays = Number(actPref('days', 0));
+  const legacyDays = Math.round(Number(actPref('hours', 24)) / 24); // windows used to be stored in hours
+  const days = WINDOWS.some(([d]) => d === savedDays) ? savedDays
+    : WINDOWS.some(([d]) => d === legacyDays) ? legacyDays : 1;
   const repoId = actPref('repo', '');
   view.innerHTML = `
     <div class="page-head">
       <div><h1>Recent activity</h1><div class="sub">Commits pushed to any branch, per developer, with lines added and removed.</div></div>
       <div class="row">
-        <select id="hours" aria-label="Time window">${WINDOWS.map(([h, l]) => `<option value="${h}" ${h === hours ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <select id="days" aria-label="Time window">${WINDOWS.map(([d, l]) => `<option value="${d}" ${d === days ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <select id="repo" aria-label="Repository"><option value="">All enabled repositories</option>${repoList.map((r) => `<option value="${r.id}" ${String(r.id) === repoId ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>
         <button class="btn primary" id="refresh">Refresh</button>
       </div>
@@ -238,13 +245,16 @@ async function activity() {
     const mine = ++token;
     const btn = $('#refresh');
     btn.disabled = true;
-    $('#act').innerHTML = '<div class="card empty"><p class="muted typing">Fetching every branch</p></div>';
+    $('#act').innerHTML = `<div class="card empty"><p class="muted typing">Fetching every branch of the last ${esc($('#days').value)} day${$('#days').value === '1' ? '' : 's'}</p></div>`;
     try {
-      const q = new URLSearchParams({ hours: $('#hours').value });
+      const q = new URLSearchParams({ days: $('#days').value });
       if ($('#repo').value) q.set('repo_ids', $('#repo').value);
       const a = await api('GET', `/api/activity?${q}`);
       if (mine !== token || !$('#act')) return; // a newer request, or the user navigated away
       $('#act').innerHTML = renderActivity(a);
+      $$('.log-more-btn').forEach((b) => {
+        b.onclick = () => { b.closest('details').querySelector('.log-more').hidden = false; b.remove(); };
+      });
       const search = $('#dev-search');
       if (search) search.oninput = () => {
         const q2 = search.value.trim().toLowerCase();
@@ -256,7 +266,7 @@ async function activity() {
       if (mine === token && $('#refresh')) $('#refresh').disabled = false;
     }
   };
-  $('#hours').onchange = (e) => { actSave('hours', e.target.value); load(); };
+  $('#days').onchange = (e) => { actSave('days', e.target.value); load(); };
   $('#repo').onchange = (e) => { actSave('repo', e.target.value); load(); };
   $('#refresh').onclick = load;
   load();
@@ -271,7 +281,17 @@ function renderActivity(a) {
     return `${warnings}<div class="card empty"><h2>Nothing pushed in this window</h2><p>No commits on any branch since ${esc(new Date(a.since).toLocaleString())}.</p></div>`;
   }
 
-  const devCard = (d) => `
+  const commitRow = (c) => `<tr>
+          <td class="small nowrap">${esc(at(c.date))}</td>
+          <td>${esc(c.subject)}${c.merge ? ` ${badge('merge', 'info')}` : ''}${c.rewritten ? ` <span class="small muted" title="Authored before this window, then rebased or cherry-picked in it">(rewritten)</span>` : ''}
+            <div class="small muted"><code>${esc(c.hash.slice(0, 8))}</code> ${badge(...COMMIT_STATUS[c.status])} ${c.branches.map(esc).join(', ')}${multiRepo ? ` · ${esc(c.repo)}` : ''}</div></td>
+          <td class="num">${c.merge ? '<span class="muted small">merge</span>' : `${plusMinus(c.additions, c.deletions)}<div class="small muted">${fmt(c.files)} file${c.files === 1 ? '' : 's'}</div>`}</td></tr>`;
+
+  const devCard = (d) => {
+    const shown = d.log.slice(0, LOG_CAP);
+    const rest = d.log.slice(LOG_CAP);
+    const files = d.topFiles || [];
+    return `
     <div class="card dev-card" data-q="${esc(`${d.name} ${d.email} ${d.otherEmails.join(' ')}`.toLowerCase())}">
       <div class="dev-head">
         <div class="who"><span class="avatar">${initials(d.name)}</span><div class="who-t"><div class="nm">${esc(d.name)}</div>
@@ -292,14 +312,17 @@ function renderActivity(a) {
           <td class="num">${fmt(b.commits)}${b.merges ? `<div class="small muted">+${fmt(b.merges)} merge${b.merges > 1 ? 's' : ''}</div>` : ''}</td>
           <td class="num">${plusMinus(b.additions, b.deletions)}</td><td class="num small">${ago(b.lastAt)}</td></tr>`).join('')}</tbody>
       </table></div>
-      <details class="commit-list"><summary>${fmt(d.log.length)} commit${d.log.length === 1 ? '' : 's'}</summary><div class="table-wrap"><table><tbody>
-        ${d.log.map((c) => `<tr>
-          <td class="small nowrap">${esc(at(c.date))}</td>
-          <td>${esc(c.subject)}${c.merge ? ` ${badge('merge', 'info')}` : ''}${c.rewritten ? ` <span class="small muted" title="Authored before this window, then rebased or cherry-picked in it">(rewritten)</span>` : ''}
-            <div class="small muted"><code>${esc(c.hash.slice(0, 8))}</code> ${badge(...COMMIT_STATUS[c.status])} ${c.branches.map(esc).join(', ')}${multiRepo ? ` · ${esc(c.repo)}` : ''}</div></td>
-          <td class="num">${c.merge ? '<span class="muted small">merge</span>' : `${plusMinus(c.additions, c.deletions)}<div class="small muted">${fmt(c.files)} file${c.files === 1 ? '' : 's'}</div>`}</td></tr>`).join('')}
-      </tbody></table></div></details>
+      ${files.length ? `<details class="commit-list"><summary>Top ${files.length} changed file${files.length === 1 ? '' : 's'}</summary><div class="table-wrap"><table>
+        <thead><tr><th>File</th><th class="num">Commits</th><th class="num">Lines</th></tr></thead>
+        <tbody>${files.map((f) => `<tr><td><code>${esc(f.path)}</code>${multiRepo ? `<div class="small muted">${esc(f.repo)}</div>` : ''}</td>
+          <td class="num">${fmt(f.commits)}</td><td class="num">${plusMinus(f.additions, f.deletions)}</td></tr>`).join('')}</tbody>
+      </table></div></details>` : ''}
+      <details class="commit-list"><summary>${fmt(d.log.length)} commit${d.log.length === 1 ? '' : 's'}</summary>
+        <div class="table-wrap"><table><tbody>${shown.map(commitRow).join('')}</tbody>${rest.length ? `<tbody class="log-more" hidden>${rest.map(commitRow).join('')}</tbody>` : ''}</table></div>
+        ${rest.length ? `<button type="button" class="btn small log-more-btn">Show ${fmt(rest.length)} more</button>` : ''}
+      </details>
     </div>`;
+  };
 
   return `
     <div class="sub act-window">${esc(span)} · ${fmt(t.repos)} of ${fmt(a.repositories.length)} repositories active · updated ${esc(new Date(a.generatedAt).toLocaleTimeString())}</div>

@@ -6,9 +6,17 @@ const { git, resolveRepo, streamLog, detectMainRef, displayBranch, pool, US } = 
 const { buildIdentityResolver, normEmail, BOT_RE } = require('./analyze');
 
 const HOUR_MS = 3600000;
+const MAX_WINDOW_DAYS = 31; // beyond this a full scan (not a live window) is the right tool
 const lines = (s) => s.split('\n').map((l) => l.trim()).filter(Boolean);
 const inc = (map, key) => map.set(key, (map.get(key) || 0) + 1);
 const topKey = (map) => [...map.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+
+// A window request from the UI or the API: "days=15" (preferred) or "hours=360" -> hours, 1..31 days.
+function activityHours(days, hours) {
+  const d = days === undefined || days === null || days === '' ? NaN : Number(days);
+  if (Number.isFinite(d)) return Math.min(Math.max(Math.round(d), 1), MAX_WINDOW_DAYS) * 24;
+  return Math.min(Math.max(Number(hours) || 24, 1), MAX_WINDOW_DAYS * 24);
+}
 
 // Merge commit subjects that name the branch they brought in.
 const MERGE_SUBJECTS = [
@@ -109,6 +117,8 @@ function duplicatePatches(repo, commits, mainSet) {
  *  - unpushed:  on a local main that is ahead of origin
  * The window is by commit (committer) date, so work rebased or cherry-picked in the window counts;
  * those commits are flagged `rewritten` when their author date is older.
+ * Every developer carries `topFiles` (their biggest code changes in the window) alongside the
+ * per-branch rows, so a 7/15/30-day window shows what changed as well as where.
  */
 async function collectActivity({ repos: inputs, hours = 24, bots = false, excludes = [], now = Date.now(), log = () => {} }) {
   const sinceTs = now - hours * HOUR_MS;
@@ -213,7 +223,7 @@ async function collectActivity({ repos: inputs, hours = 24, bots = false, exclud
         name: topKey(ident.names), email: topKey(ident.emails),
         otherEmails: [...ident.emails.keys()].filter((e) => e !== topKey(ident.emails)).sort(),
         isBot: ident.isBot, commits: 0, merges: 0, additions: 0, deletions: 0,
-        files: new Set(), repos: new Set(), branches: new Map(), log: [], firstAt: null, lastAt: null,
+        files: new Set(), fileChurn: new Map(), repos: new Set(), branches: new Map(), log: [], firstAt: null, lastAt: null,
       };
       people.set(c.id, p);
     }
@@ -226,7 +236,12 @@ async function collectActivity({ repos: inputs, hours = 24, bots = false, exclud
       add += f.add;
       del += f.del;
       fileCount++;
-      p.files.add(c.repo + '\0' + f.path);
+      const key = c.repo + '\0' + f.path;
+      p.files.add(key);
+      const churn = p.fileChurn.get(key) || p.fileChurn.set(key, { additions: 0, deletions: 0, commits: 0 }).get(key);
+      churn.additions += f.add;
+      churn.deletions += f.del;
+      churn.commits++;
     }
 
     if (c.parents > 1) p.merges++; else p.commits++;
@@ -252,13 +267,21 @@ async function collectActivity({ repos: inputs, hours = 24, bots = false, exclud
   }
 
   const byChurn = (a, b) => (b.additions + b.deletions) - (a.additions + a.deletions) || b.commits - a.commits;
-  const developers = [...people.values()].map((p) => ({
-    ...p,
-    files: p.files.size,
-    repos: [...p.repos].sort(),
-    branches: [...p.branches.values()].sort(byChurn),
-    log: p.log.sort((a, b) => (a.date < b.date ? 1 : -1)),
-  })).sort(byChurn);
+  const developers = [...people.values()].map((p) => {
+    const { fileChurn, ...rest } = p;
+    const topFiles = [...fileChurn.entries()].map(([key, v]) => {
+      const at = key.indexOf('\0');
+      return { repo: key.slice(0, at), path: key.slice(at + 1), ...v, churn: v.additions + v.deletions };
+    }).sort(byChurn).slice(0, 12);
+    return {
+      ...rest,
+      topFiles,
+      files: p.files.size,
+      repos: [...p.repos].sort(),
+      branches: [...p.branches.values()].sort(byChurn),
+      log: p.log.sort((a, b) => (a.date < b.date ? 1 : -1)),
+    };
+  }).sort(byChurn);
   const branchList = [...branchRows.values()].map((b) => ({ ...b, developers: [...b.developers].sort() })).sort(byChurn);
   const sum = (key) => developers.reduce((s, d) => s + d[key], 0);
 
@@ -287,4 +310,4 @@ async function collectActivity({ repos: inputs, hours = 24, bots = false, exclud
   };
 }
 
-module.exports = { collectActivity, branchFromSubject };
+module.exports = { collectActivity, branchFromSubject, activityHours, MAX_WINDOW_DAYS };

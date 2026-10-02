@@ -518,6 +518,8 @@ dialog h2 { font-size: 16.5px; margin-bottom: 16px; }
 .commit-list { margin-top: 10px; }
 .commit-list summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--accent); padding: 6px 0; }
 .commit-list td { vertical-align: top; }
+.commit-list .log-more-btn { margin-top: 8px; }
+tbody[hidden] { display: none; } /* overflow rows of a long commit list */
 .nowrap { white-space: nowrap; }
 
 /* ===== responsive ==================================================================== */

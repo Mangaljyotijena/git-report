@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { collectActivity, branchFromSubject } = require('../src/activity');
+const { collectActivity, branchFromSubject, activityHours, MAX_WINDOW_DAYS } = require('../src/activity');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-activity-test-'));
 const repo = path.join(dir, 'demo');
@@ -38,7 +38,8 @@ const dave = { name: 'Dave Brown', email: 'dave@acme.com' };
 const bot = { name: 'dependabot[bot]', email: 'bot@github.com' };
 
 git(['init', '-q', '-b', 'main']);
-write('src/old.js', 50); commit(alice, 'old work', 72);                                   // outside the window
+write('src/ancient.js', 6); commit(alice, 'chore: seed module', 240);                      // 10 days old: outside 7d, inside 15d/30d
+write('src/old.js', 50); commit(alice, 'old work', 72);                                    // outside the 24h window
 write('src/app.js', 5); commit(alice, 'feat: app', 10);                                    // main, +5
 write('src/home.js', 2); commit(aliceHome, 'from home', 9);                                // main, +2, same person
 write('package-lock.json', 300); commit(alice, 'chore: lock', 8);                          // excluded file
@@ -80,7 +81,8 @@ git(['checkout', '-q', 'main']);
 
 (async () => {
   const r = await collectActivity({ repos: [{ dir: repo, name: 'demo' }], hours: 24, now });
-  const dev = (name) => r.developers.find((d) => d.name === name);
+  const devOf = (report, name) => report.developers.find((d) => d.name === name);
+  const dev = (name) => devOf(r, name);
   const row = (d, branch) => dev(d).branches.find((b) => b.branch === branch);
 
   assert.deepStrictEqual(r.developers.map((d) => d.name).sort(), ['Alice Smith', 'Bob Jones', 'Carol White', 'Dave Brown'], 'bot dropped, Alice merged');
@@ -112,6 +114,30 @@ git(['checkout', '-q', 'main']);
   assert.strictEqual(r.totals.additions, 7 + 33 + 3 + 10 + 8);
   assert.ok(r.branches.some((b) => b.branch === 'feature/login' && b.developers.includes('Bob Jones')));
   assert.strictEqual(r.repositories[0].mainBranch, 'main');
+
+  // Code-change details: what each developer changed, per file, across the branches they touched.
+  assert.deepStrictEqual(dev('Alice Smith').topFiles.map((f) => f.path).sort(), ['src/app.js', 'src/home.js'], 'lock file excluded from the file details');
+  assert.strictEqual(dev('Alice Smith').topFiles.find((f) => f.path === 'src/app.js').additions, 5);
+  assert.ok(dev('Bob Jones').topFiles.some((f) => f.path === 'src/api.js' && f.additions === 20), 'unmerged branch work is in the file details');
+  assert.ok(!JSON.stringify(r).includes('fileChurn'), 'the internal per-file map is not serialised');
+
+  // The 7 / 15 / 30-day windows offered on the Activity page.
+  const week = await collectActivity({ repos: [{ dir: repo, name: 'demo' }], hours: activityHours(7), now });
+  assert.strictEqual(devOf(week, 'Alice Smith').commits, 4, '7 days: "old work" but not the 10-day-old commit');
+  const fortnight = await collectActivity({ repos: [{ dir: repo, name: 'demo' }], hours: activityHours(15), now });
+  assert.strictEqual(devOf(fortnight, 'Alice Smith').commits, 5, '15 days includes the 10-day-old commit');
+  const month = await collectActivity({ repos: [{ dir: repo, name: 'demo' }], hours: activityHours(30), now });
+  assert.strictEqual(devOf(month, 'Alice Smith').commits, 5, '30 days covers the whole fixture');
+  assert.deepStrictEqual(month.developers.map((d) => d.name).sort(),
+    ['Alice Smith', 'Bob Jones', 'Carol White', 'Dave Brown'], 'bots stay hidden in the 30-day window too');
+
+  // Window parsing used by GET /api/activity and the assistant's get_recent_activity tool.
+  assert.strictEqual(activityHours(7), 168);
+  assert.strictEqual(activityHours('15'), 360);
+  assert.strictEqual(activityHours(30), 720);
+  assert.strictEqual(activityHours(999), MAX_WINDOW_DAYS * 24, 'capped at 31 days');
+  assert.strictEqual(activityHours(null, 48), 48, 'hours still work');
+  assert.strictEqual(activityHours(undefined, null), 24, 'default window');
 
   // A shorter window drops older work.
   const short = await collectActivity({ repos: [{ dir: repo, name: 'demo' }], hours: 3.5, now });

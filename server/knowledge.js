@@ -85,6 +85,17 @@ const ARTICLES = [
     note: 'Ask "run a scan" or "how many scans do we have?".',
   },
   {
+    id: 'activity-page', title: 'The Activity page and its time windows',
+    keywords: ['activity', 'recent activity', 'pushed', 'live', 'last 7 days', 'last 15 days', 'last 30 days', 'per branch', 'time window', 'who committed'],
+    body: [
+      'The Activity page shows what each developer pushed to any branch — it reads git directly, so no scan is needed; repositories are refreshed on every reload.',
+      'Pick a window of 24 hours, 48 hours, 3 days, 7 days, 15 days or 30 days (31 days is the maximum; older history belongs in a scan), plus one repository or all of them.',
+      'Per developer you get commits, lines added and removed, files touched, the branches they worked on, their biggest changed files, and the full commit list.',
+      'Each branch row is marked not merged, merged (naming the branch it came from) or on main, so long-lived feature branches stay visible.',
+    ],
+    note: 'Open Activity in the sidebar, or ask Claude-mode "who committed in the last 15 days?" for the same data live.',
+  },
+  {
     id: 'assistant-modes', title: 'Assistant modes: Smart vs Claude',
     keywords: ['mode', 'smart', 'claude', 'ai', 'model', 'llm', 'api', 'key', 'deterministic', 'why', 'no ai'],
     body: [

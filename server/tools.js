@@ -227,29 +227,31 @@ const TOOLS = [
   },
   {
     name: 'get_recent_activity',
-    description: 'Live git activity from the last N hours across repositories (fetches first unless fetch=false). Use for "what happened today" questions that need data newer than the last finished scan. Returns totals plus per-developer and per-branch summaries.',
+    description: 'Live git activity from the last N days (or hours) across repositories (fetches first unless fetch=false). Use for "what happened in the last 7/15/30 days" questions that need data newer than the last finished scan. Returns totals, per-developer totals with their top changed files, and per-branch summaries with lines added and removed.',
     input_schema: {
       type: 'object',
       properties: {
+        days: { type: 'integer', description: 'Look-back window in days, e.g. 7, 15 or 30. Max 31. Ignored when hours is given.' },
         hours: { type: 'integer', description: 'Look-back window in hours, default 24, max 744' },
         repo_ids: { type: 'array', items: { type: 'integer' } },
         fetch: { type: 'boolean', description: 'Fetch remotes first, default true' },
       },
       additionalProperties: false,
     },
-    run: async ({ hours = 24, repo_ids: repoIds = [], fetch = true }) => {
+    run: async ({ hours, days, repo_ids: repoIds = [], fetch = true }) => {
       const { recentActivity } = require('./scanner');
+      const { activityHours } = require('../src/activity');
       const r = await recentActivity({
         repoIds: repoIds.map(Number).filter(Boolean),
-        hours: Math.min(Math.max(Number(hours) || 24, 1), 24 * 31),
+        hours: hours === undefined ? activityHours(days, null) : activityHours(null, hours),
         fetch: fetch !== false,
       });
       return {
-        generatedAt: r.generatedAt, since: r.since, hours: r.hours, totals: r.totals, warnings: r.warnings,
+        generatedAt: r.generatedAt, since: r.since, hours: r.hours, days: r.hours / 24, totals: r.totals, warnings: r.warnings,
         repositories: r.repositories,
         developers: (r.developers || []).slice(0, 25).map((d) => ({
           name: d.name, commits: d.commits, merges: d.merges, additions: d.additions, deletions: d.deletions,
-          files: d.files, branches: d.branches,
+          files: d.files, branches: d.branches, topFiles: d.topFiles,
           recent: (d.log || []).slice(0, 5).map((c) => ({ date: c.date, subject: c.subject, repo: c.repo, merge: c.merge })),
         })),
         branches: (r.branches || []).slice(0, 20).map((b) => ({
