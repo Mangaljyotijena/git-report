@@ -334,6 +334,13 @@ function devDetailBody(a, d, sub) {
       </details>`;
 }
 
+function activityFootnote(t) {
+  return 'A commit on several branches is listed under each of them but counted once in the totals. The window uses the commit date, so work rebased or cherry-picked in it is included and marked “rewritten”.'
+    + (t.duplicatesSkipped ? ` ${fmt(t.duplicatesSkipped)} duplicate cop${t.duplicatesSkipped === 1 ? 'y' : 'ies'} of the same change counted once.` : '')
+    + (t.excludedLines ? ` ${fmt(t.excludedLines)} lines in lock files and build output not counted.` : '')
+    + (t.botCommits ? ` ${fmt(t.botCommits)} bot commit${t.botCommits === 1 ? '' : 's'} hidden.` : '');
+}
+
 function renderActivity(a) {
   const t = a.totals;
   const multiRepo = a.repositories.length > 1;
@@ -355,10 +362,7 @@ function renderActivity(a) {
       <tbody>${a.branches.map((b) => `<tr><td><code>${esc(b.branch)}</code>${multiRepo ? `<div class="small muted">${esc(b.repo)}</div>` : ''}</td><td>${branchBadges(b)}</td>
         <td class="small">${esc(b.developers.join(', '))}</td><td class="num">${fmt(b.commits)}</td><td class="num">${plusMinus(b.additions, b.deletions)}</td><td class="num small">${ago(b.lastAt)}</td></tr>`).join('')}</tbody>
     </table></div></div>
-    <p class="small muted">A commit on several branches is listed under each of them but counted once in the totals. The window uses the commit date, so work rebased or cherry-picked in it is included and marked “rewritten”.
-      ${t.duplicatesSkipped ? `${fmt(t.duplicatesSkipped)} duplicate cop${t.duplicatesSkipped === 1 ? 'y' : 'ies'} of the same change counted once.` : ''}
-      ${t.excludedLines ? `${fmt(t.excludedLines)} lines in lock files and build output not counted.` : ''}
-      ${t.botCommits ? `${fmt(t.botCommits)} bot commit${t.botCommits === 1 ? '' : 's'} hidden.` : ''}</p>`;
+    <p class="small muted">${esc(activityFootnote(t))}</p>`;
 }
 
 function devListPane() {
@@ -367,6 +371,10 @@ function devListPane() {
       <h2 class="grow">Developers</h2>
       <span class="small muted" id="dev-count" aria-live="polite"></span>
       <input type="search" id="dev-search" placeholder="Filter by name or email" aria-label="Filter developers">
+      <div class="row act-export">
+        <button type="button" class="btn small" id="act-png" aria-label="Export the developer list as a PNG image">Export PNG</button>
+        <button type="button" class="btn small" id="act-pdf" aria-label="Export the developer list as a PDF document">Export PDF</button>
+      </div>
     </div>
     <div class="card dev-list-card">
       <div class="table-wrap"><table>
@@ -469,6 +477,69 @@ function wireActivity(a) {
     });
   };
 
+  // The export shows exactly what the list shows: the current sort and filter.
+  const exportModel = () => {
+    const idxs = order();
+    const shown = idxs.map((i) => a.developers[i]);
+    const sum = (f) => shown.reduce((n, d) => n + f(d), 0);
+    const commits = sum((d) => d.commits);
+    const adds = sum((d) => d.additions);
+    const dels = sum((d) => d.deletions);
+    const win = WINDOWS.find(([d]) => String(d) === $('#days').value);
+    const repo = $('#repo');
+    const scope = repo.value
+      ? (repo.selectedOptions && repo.selectedOptions[0] ? String(repo.selectedOptions[0].textContent) : 'One repository')
+      : 'All enabled repositories';
+    const sort = ACT_SORTS.find(([k]) => k === sortKey);
+    const search = $('#dev-search');
+    const churn = Math.max(1, a.totals.additions + a.totals.deletions);
+    return {
+      title: 'Recent activity — developers',
+      context: [
+        `${win ? win[1] : `${a.hours / 24}-day window`} · ${scope} · generated ${new Date(a.generatedAt).toLocaleString()}`,
+        `${fmt(shown.length)} of ${fmt(a.developers.length)} developers shown`
+          + (filter && search ? ` · filter “${search.value}”` : '')
+          + ` · sorted by ${sort ? sort[1].toLowerCase() : 'lines'} ${sortDir > 0 ? 'ascending' : 'descending'}`,
+      ],
+      totalsLine: `${fmt(commits)} commits · +${fmt(adds)} −${fmt(dels)} lines · ${fmt(shown.length)} developer${shown.length === 1 ? '' : 's'}`,
+      columns: [
+        { label: 'Developer', align: 'left', w: 500 },
+        { label: 'Commits', align: 'right', w: 130 },
+        { label: 'Lines', align: 'right', w: 180 },
+        { label: 'Files', align: 'right', w: 110 },
+        { label: 'Branches', align: 'right', w: 140 },
+        { label: 'Last', align: 'right', w: 180 },
+        { label: 'Share', align: 'right', w: 288 },
+      ],
+      rows: shown.map((d) => {
+        const pct = Math.round(((d.additions + d.deletions) / churn) * 100);
+        return {
+          cells: [
+            { text: d.name, sub: [d.email, ...d.otherEmails].join(' · ') },
+            { text: fmt(d.commits) },
+            { parts: [{ text: `+${fmt(d.additions)}`, color: 'add' }, { text: ` −${fmt(d.deletions)}`, color: 'del' }] },
+            { text: fmt(d.files) },
+            { text: fmt(d.branches.length) },
+            { text: ago(d.lastAt) },
+            { bar: pct, text: `${pct}%` },
+          ],
+        };
+      }),
+      totals: [
+        { text: 'Total' }, { text: fmt(commits) },
+        { parts: [{ text: `+${fmt(adds)}`, color: 'add' }, { text: ` −${fmt(dels)}`, color: 'del' }] },
+        { text: '—' }, { text: '—' }, { text: '' }, { text: '' },
+      ],
+      footnote: activityFootnote(a.totals),
+    };
+  };
+
+  const exportList = (btn, kind) => busy(btn, async () => {
+    const stamp = `${$('#days').value}d-${new Date().toISOString().slice(0, 10)}`;
+    const name = await exportActivityList(exportModel(), kind, { filename: `activity-${stamp}.${kind}` });
+    toast(`Saved ${name}`);
+  });
+
   const wireList = () => {
     const search = $('#dev-search');
     if (search) {
@@ -491,6 +562,10 @@ function wireActivity(a) {
       const tr = e.target.closest('tr[data-i]');
       if (tr) openDetail(Number(tr.dataset.i));
     };
+    const pngBtn = $('#act-png');
+    const pdfBtn = $('#act-pdf');
+    if (pngBtn) pngBtn.onclick = () => exportList(pngBtn, 'png');
+    if (pdfBtn) pdfBtn.onclick = () => exportList(pdfBtn, 'pdf');
   };
 
   const openDetail = (i) => {

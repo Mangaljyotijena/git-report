@@ -524,6 +524,7 @@ tbody[hidden] { display: none; } /* overflow rows of a long commit list */
 
 /* Developer list → developer detail. */
 .act-hint { margin-top: 10px; }
+.act-export { gap: 6px; }
 .dev-pane { scroll-margin-top: 84px; }
 .dev-pane + .card { margin-top: 16px; }
 .dev-list-empty { padding: 16px 4px 4px; }

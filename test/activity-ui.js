@@ -108,6 +108,7 @@ const paneEl = mkEl({
 elements.set('#dev-pane', paneEl);
 
 const requests = [];
+const exported = [];
 const store = new Map();
 const scrolled = [];
 let holdNext = false;
@@ -137,6 +138,10 @@ const ctx = vm.createContext({
     }
     const body = String(url).includes('/api/repos') ? [{ id: 1, name: 'demo' }] : payload;
     return { ok: true, headers: { get: () => 'application/json' }, json: async () => body, text: async () => '' };
+  },
+  exportActivityList: async (model, kind, deps = {}) => {
+    exported.push({ model, kind, filename: deps.filename });
+    return deps.filename || `activity-export.${kind}`;
   },
 });
 vm.runInContext(src, ctx, { filename: 'public/app.js' });
@@ -225,6 +230,49 @@ const clickRow = (i) => getEl('#dev-rows').onclick({ target: { closest: (sel) =>
   assert.strictEqual(search.value, '', 'the box was cleared');
   assert.ok(rowsHtml().includes('Ada Lovelace'), 'both developers are back');
 
+  // -- exporting exactly what the list shows ------------------------------------------------------------
+  assert.ok(typeof getEl('#act-png').onclick === 'function', 'the PNG button is wired');
+  assert.ok(typeof getEl('#act-pdf').onclick === 'function', 'the PDF button is wired');
+  const pngBtn = getEl('#act-png');
+  const pdfBtn = getEl('#act-pdf');
+  pngBtn.textContent = 'Export PNG';
+  pngBtn.onclick();
+  assert.strictEqual(pngBtn.disabled, true, 'the export disables its button while it works');
+  assert.strictEqual(pngBtn.textContent, 'Working…', 'and says so');
+  await flush();
+  assert.strictEqual(pngBtn.disabled, false, 'the button comes back');
+  assert.strictEqual(pngBtn.textContent, 'Export PNG', 'with its original label');
+  assert.strictEqual(exported.length, 1, 'one export so far');
+  assert.strictEqual(exported[0].kind, 'png', 'a PNG was requested');
+  const day = new Date().toISOString().slice(0, 10);
+  assert.strictEqual(exported[0].filename, `activity-30d-${day}.png`, 'named after the window');
+  assert.strictEqual(getEl('#toast').textContent, `Saved activity-30d-${day}.png`, 'and reported: ' + getEl('#toast').textContent);
+  const ex = exported[0].model;
+  assert.strictEqual(ex.rows.length, 2, 'every developer on screen is exported');
+  assert.strictEqual(ex.rows[0].cells[0].text, 'Ada Lovelace', 'in the order shown');
+  assert.ok(ex.rows[0].cells[0].sub.includes('ada@acme.com'), 'with their e-mail');
+  assert.strictEqual(ex.columns.length, 7, 'the same columns as the table');
+  assert.ok(ex.totalsLine.startsWith('65 commits · +190 −65 lines'), ex.totalsLine);
+  assert.ok(ex.context[0].startsWith('Last 30 days · All enabled repositories'), ex.context[0]);
+  assert.ok(ex.context[1].includes('sorted by developer ascending'), ex.context[1]);
+  assert.ok(ex.footnote.includes('counted once in the totals'), 'the footnote travels along');
+  pdfBtn.onclick();
+  await flush();
+  assert.strictEqual(exported[1].kind, 'pdf', 'a PDF was requested');
+  assert.strictEqual(getEl('#toast').textContent, `Saved activity-30d-${day}.pdf`, 'the PDF is reported too');
+
+  // the filter travels with the export
+  search.value = 'bob';
+  search.oninput();
+  pngBtn.onclick();
+  await flush();
+  assert.strictEqual(exported[2].model.rows.length, 1, 'the export follows the filter');
+  assert.strictEqual(exported[2].model.rows[0].cells[0].text, 'Bob Builder', 'with only the filtered developer');
+  assert.ok(exported[2].model.context[1].includes('filter “bob”'), exported[2].model.context[1]);
+  search.value = '';
+  search.oninput();
+  assert.ok(rowsHtml().includes('Ada Lovelace'), 'the filter is cleared again');
+
   // -- opening a developer's detail --------------------------------------------------------------------
   clickRow(0);
   const detail = paneEl.innerHTML;
@@ -279,6 +327,15 @@ const clickRow = (i) => getEl('#dev-rows').onclick({ target: { closest: (sel) =>
   assert.ok(paneEl.innerHTML.includes('id="dev-rows"'), 'the list is back');
   assert.strictEqual(focusedSel, 'tr[data-i="1"] .dev-open', 'focus returns to Bob');
   assert.deepStrictEqual(scrolled, [420, 420], 'the scroll position is restored again');
+
+  // -- the export buttons survive the trip to the detail and back -----------------------------------------
+  getEl('#act-png').onclick = null;
+  getEl('#act-pdf').onclick = null;
+  clickRow(1);
+  assert.ok(paneEl.innerHTML.includes('Bob Builder'), 'the detail replaced the list and its buttons');
+  getEl('#dev-back').onclick();
+  assert.ok(typeof getEl('#act-png').onclick === 'function', 'the PNG button is wired again');
+  assert.ok(typeof getEl('#act-pdf').onclick === 'function', 'the PDF button is wired again');
 
   // -- a failed refresh keeps the last good report ----------------------------------------------------------
   const kept = getEl('#act').innerHTML;

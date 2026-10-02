@@ -19,7 +19,7 @@ Without Docker (Node 22.13+ and git): `npm install && npm start`.
 | **Repositories** | Add HTTPS clone URLs (GitHub, GitLab, Bitbucket, …) with an optional access token, or local paths. Remote repos are cloned into the data volume, and every branch is fetched before each scan. |
 | **Schedules** | Cron-based periodic scans, e.g. every Monday 09:00 for the last 7 days. Each schedule sets its repositories, filters, time zone, recipients, and whether to include a summary. |
 | **Scans** | History of every scan, with its live log, the full interactive HTML report, **Email report** and **Generate summary**. |
-| **Activity** | Live view of what each developer pushed to any branch in the last **7, 15 or 30 days** (also 24 h, 48 h, 3 days), headed by the usual KPI cards. A sortable, filterable developer list (commits, lines, files, branches, last commit, share of the changed lines) opens into one developer's detail: lines added/removed, commits, top changed files and a per-branch breakdown marked *not merged*, *merged* (with the branch it came from) or *on main* — with previous/next and Esc to step back. Pick one repository or all of them. Repos are fetched on every refresh; no scan needed. |
+| **Activity** | Live view of what each developer pushed to any branch in the last **7, 15 or 30 days** (also 24 h, 48 h, 3 days), headed by the usual KPI cards. A sortable, filterable developer list (commits, lines, files, branches, last commit, share of the changed lines) opens into one developer's detail: lines added/removed, commits, top changed files and a per-branch breakdown marked *not merged*, *merged* (with the branch it came from) or *on main* — with previous/next and Esc to step back. The list itself exports as **PNG** or **PDF** (the current sort and filter, totals and footnote included). Pick one repository or all of them. Repos are fetched on every refresh; no scan needed. |
 | **Dashboard** | Totals, insights, monthly activity, developers, unmerged branches, hotspots and knowledge silos for any finished scan. |
 | **Assistant** | Answers questions over all stored scans with tools (developers, branches, commit search, scan comparison) and can start new scans. Switch between **Auto**, **Smart** and **Claude** in the page header. |
 | **Settings** | Gmail (address and [app password](https://myaccount.google.com/apppasswords)), default recipients, Anthropic API key, model and effort. |
@@ -104,5 +104,5 @@ Run `node bin/git-report.js --help` for every option.
 ## Test
 
 ```bash
-npm test   # smoke test, activity engine test, Activity-page UI test, then the Smart agent suites (intents, tools, dialogue, chat, history)
+npm test   # smoke test, activity engine test, Activity-page UI test, list-export test (canvas layout, pagination, PDF), then the Smart agent suites (intents, tools, dialogue, chat, history)
 ```
