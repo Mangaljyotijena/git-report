@@ -90,7 +90,8 @@ const ARTICLES = [
     body: [
       'The Activity page shows what each developer pushed to any branch — it reads git directly, so no scan is needed; repositories are refreshed on every reload.',
       'Pick a window of 24 hours, 48 hours, 3 days, 7 days, 15 days or 30 days (31 days is the maximum; older history belongs in a scan), plus one repository or all of them.',
-      'Per developer you get commits, lines added and removed, files touched, the branches they worked on, their biggest changed files, and the full commit list.',
+      'The page opens on a developer list — sortable by commits, lines, files, branches or last commit, and filterable by name or email — with the window totals above it.',
+      'Select a developer to open their detail: commits, lines added and removed, files touched, the branches they worked on, their biggest changed files, and the full commit list. Previous/next steps through the list and Esc (or the back button) returns to it.',
       'Each branch row is marked not merged, merged (naming the branch it came from) or on main, so long-lived feature branches stay visible.',
     ],
     note: 'Open Activity in the sidebar, or ask Claude-mode "who committed in the last 15 days?" for the same data live.',

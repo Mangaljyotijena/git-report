@@ -241,27 +241,28 @@ async function activity() {
     <div id="act"></div>`;
 
   let token = 0;
+  let painted = false; // a previous successful render is on screen
   const load = async () => {
     const mine = ++token;
     const btn = $('#refresh');
     btn.disabled = true;
-    $('#act').innerHTML = `<div class="card empty"><p class="muted typing">Fetching every branch of the last ${esc($('#days').value)} day${$('#days').value === '1' ? '' : 's'}</p></div>`;
+    // A refresh keeps the report on screen and dims it; only the very first paint shows the spinner.
+    if (painted) $('#act').classList.add('is-loading');
+    else $('#act').innerHTML = `<div class="card empty"><p class="muted typing">Fetching every branch of the last ${esc($('#days').value)} day${$('#days').value === '1' ? '' : 's'}</p></div>`;
     try {
       const q = new URLSearchParams({ days: $('#days').value });
       if ($('#repo').value) q.set('repo_ids', $('#repo').value);
       const a = await api('GET', `/api/activity?${q}`);
       if (mine !== token || !$('#act')) return; // a newer request, or the user navigated away
+      $('#act').classList.remove('is-loading');
       $('#act').innerHTML = renderActivity(a);
-      $$('.log-more-btn').forEach((b) => {
-        b.onclick = () => { b.closest('details').querySelector('.log-more').hidden = false; b.remove(); };
-      });
-      const search = $('#dev-search');
-      if (search) search.oninput = () => {
-        const q2 = search.value.trim().toLowerCase();
-        $$('.dev-card').forEach((c) => { c.hidden = q2 && !c.dataset.q.includes(q2); });
-      };
+      painted = true;
+      wireActivity(a);
     } catch (err) {
-      if (mine === token && $('#act')) $('#act').innerHTML = `<div class="card empty"><h2>Could not load activity</h2><p>${esc(err.message)}</p></div>`;
+      if (mine !== token || !$('#act')) return;
+      $('#act').classList.remove('is-loading');
+      if (painted) toast(err.message, true); // the last good report stays on screen
+      else $('#act').innerHTML = `<div class="card empty"><h2>Could not load activity</h2><p>${esc(err.message)}</p></div>`;
     } finally {
       if (mine === token && $('#refresh')) $('#refresh').disabled = false;
     }
@@ -272,30 +273,35 @@ async function activity() {
   load();
 }
 
-function renderActivity(a) {
-  const t = a.totals;
-  const multiRepo = a.repositories.length > 1;
-  const span = `${new Date(a.since).toLocaleString()} → now`;
-  const warnings = a.warnings.length ? `<div class="card"><h2>Warnings</h2><ul class="insights">${a.warnings.map((w) => `<li>${badge('warn', 'warn')}<span>${esc(w)}</span></li>`).join('')}</ul></div>` : '';
-  if (!a.developers.length) {
-    return `${warnings}<div class="card empty"><h2>Nothing pushed in this window</h2><p>No commits on any branch since ${esc(new Date(a.since).toLocaleString())}.</p></div>`;
-  }
+// ---- rendering the report ---------------------------------------------------------------------------
+const ACT_SORTS = [
+  ['name', 'Developer', ''], ['commits', 'Commits', 'num'], ['lines', 'Lines', 'num'],
+  ['files', 'Files', 'num hide-sm'], ['branches', 'Branches', 'num hide-sm'], ['last', 'Last', 'num'],
+];
+const wireLogButtons = (root = document) => $$('.log-more-btn', root).forEach((b) => {
+  b.onclick = () => { b.closest('details').querySelector('.log-more').hidden = false; b.remove(); };
+});
 
-  const commitRow = (c) => `<tr>
+function commitRow(c, multiRepo) {
+  return `<tr>
           <td class="small nowrap">${esc(at(c.date))}</td>
           <td>${esc(c.subject)}${c.merge ? ` ${badge('merge', 'info')}` : ''}${c.rewritten ? ` <span class="small muted" title="Authored before this window, then rebased or cherry-picked in it">(rewritten)</span>` : ''}
             <div class="small muted"><code>${esc(c.hash.slice(0, 8))}</code> ${badge(...COMMIT_STATUS[c.status])} ${c.branches.map(esc).join(', ')}${multiRepo ? ` · ${esc(c.repo)}` : ''}</div></td>
           <td class="num">${c.merge ? '<span class="muted small">merge</span>' : `${plusMinus(c.additions, c.deletions)}<div class="small muted">${fmt(c.files)} file${c.files === 1 ? '' : 's'}</div>`}</td></tr>`;
+}
 
-  const devCard = (d) => {
-    const shown = d.log.slice(0, LOG_CAP);
-    const rest = d.log.slice(LOG_CAP);
-    const files = d.topFiles || [];
-    return `
-    <div class="card dev-card" data-q="${esc(`${d.name} ${d.email} ${d.otherEmails.join(' ')}`.toLowerCase())}">
+function devDetailBody(a, d, sub) {
+  const multiRepo = a.repositories.length > 1;
+  const shown = d.log.slice(0, LOG_CAP);
+  const rest = d.log.slice(LOG_CAP);
+  const files = d.topFiles || [];
+  const churn = d.additions + d.deletions;
+  const pct = Math.round((churn / Math.max(1, a.totals.additions + a.totals.deletions)) * 100);
+  return `
       <div class="dev-head">
         <div class="who"><span class="avatar">${initials(d.name)}</span><div class="who-t"><div class="nm">${esc(d.name)}</div>
-          <div class="small muted">${esc([d.email, ...d.otherEmails].join(' · '))}</div></div></div>
+          <div class="small muted dev-mail">${esc([d.email, ...d.otherEmails].join(' · '))}</div>
+          <div class="small act-pos">${esc(sub)}</div></div></div>
         <div class="dev-nums">
           <div><strong>${plusMinus(d.additions, d.deletions)}</strong><span>lines</span></div>
           <div><strong>${fmt(d.commits)}</strong><span>commits</span></div>
@@ -303,7 +309,12 @@ function renderActivity(a) {
           <div><strong>${fmt(d.files)}</strong><span>files</span></div>
           <div><strong>${fmt(d.branches.length)}</strong><span>${d.branches.length === 1 ? 'branch' : 'branches'}</span></div>
           <div><strong>${ago(d.lastAt)}</strong><span>last commit</span></div>
+          <div><strong>${ago(d.firstAt)}</strong><span>first commit</span></div>
         </div>
+      </div>
+      <div class="dev-share">
+        <div class="share" title="${pct}% of the lines changed in this window"><span style="width:${Math.max(pct, 1)}%"></span></div>
+        <span class="small muted">${pct}% of all lines changed in this window</span>
       </div>
       <div class="table-wrap"><table>
         <thead><tr><th>Branch</th><th>Status</th><th class="num">Commits</th><th class="num">Lines</th><th class="num">Last</th></tr></thead>
@@ -318,12 +329,19 @@ function renderActivity(a) {
           <td class="num">${fmt(f.commits)}</td><td class="num">${plusMinus(f.additions, f.deletions)}</td></tr>`).join('')}</tbody>
       </table></div></details>` : ''}
       <details class="commit-list"><summary>${fmt(d.log.length)} commit${d.log.length === 1 ? '' : 's'}</summary>
-        <div class="table-wrap"><table><tbody>${shown.map(commitRow).join('')}</tbody>${rest.length ? `<tbody class="log-more" hidden>${rest.map(commitRow).join('')}</tbody>` : ''}</table></div>
+        <div class="table-wrap"><table><tbody>${shown.map((c) => commitRow(c, multiRepo)).join('')}</tbody>${rest.length ? `<tbody class="log-more" hidden>${rest.map((c) => commitRow(c, multiRepo)).join('')}</tbody>` : ''}</table></div>
         ${rest.length ? `<button type="button" class="btn small log-more-btn">Show ${fmt(rest.length)} more</button>` : ''}
-      </details>
-    </div>`;
-  };
+      </details>`;
+}
 
+function renderActivity(a) {
+  const t = a.totals;
+  const multiRepo = a.repositories.length > 1;
+  const span = `${new Date(a.since).toLocaleString()} → now`;
+  const warnings = a.warnings.length ? `<div class="card"><h2>Warnings</h2><ul class="insights">${a.warnings.map((w) => `<li>${badge('warn', 'warn')}<span>${esc(w)}</span></li>`).join('')}</ul></div>` : '';
+  if (!a.developers.length) {
+    return `${warnings}<div class="card empty"><h2>Nothing pushed in this window</h2><p>No commits on any branch since ${esc(new Date(a.since).toLocaleString())}.</p></div>`;
+  }
   return `
     <div class="sub act-window">${esc(span)} · ${fmt(t.repos)} of ${fmt(a.repositories.length)} repositories active · updated ${esc(new Date(a.generatedAt).toLocaleTimeString())}</div>
     <div class="grid stats">
@@ -331,8 +349,7 @@ function renderActivity(a) {
       ${stat('files changed', fmt(t.files), 'i-code')}${stat('branches', fmt(t.branches), 'i-branch')}${stat('merges', fmt(t.merges), 'i-git')}${stat('not merged yet', fmt(t.unmergedCommits), 'i-alert')}
     </div>
     ${warnings}
-    <div class="row act-tools"><h2 class="grow">Developers</h2><input type="search" id="dev-search" placeholder="Filter by name or email" aria-label="Filter developers"></div>
-    ${a.developers.map(devCard).join('')}
+    <div id="dev-pane" class="dev-pane">${devListPane()}</div>
     <div class="card"><h2>Branches <span class="muted small">everyone's work per branch</span></h2><div class="table-wrap"><table>
       <thead><tr><th>Branch</th><th>Status</th><th>Developers</th><th class="num">Commits</th><th class="num">Lines</th><th class="num">Last</th></tr></thead>
       <tbody>${a.branches.map((b) => `<tr><td><code>${esc(b.branch)}</code>${multiRepo ? `<div class="small muted">${esc(b.repo)}</div>` : ''}</td><td>${branchBadges(b)}</td>
@@ -342,6 +359,175 @@ function renderActivity(a) {
       ${t.duplicatesSkipped ? `${fmt(t.duplicatesSkipped)} duplicate cop${t.duplicatesSkipped === 1 ? 'y' : 'ies'} of the same change counted once.` : ''}
       ${t.excludedLines ? `${fmt(t.excludedLines)} lines in lock files and build output not counted.` : ''}
       ${t.botCommits ? `${fmt(t.botCommits)} bot commit${t.botCommits === 1 ? '' : 's'} hidden.` : ''}</p>`;
+}
+
+function devListPane() {
+  return `
+    <div class="row act-tools">
+      <h2 class="grow">Developers</h2>
+      <span class="small muted" id="dev-count" aria-live="polite"></span>
+      <input type="search" id="dev-search" placeholder="Filter by name or email" aria-label="Filter developers">
+    </div>
+    <div class="card dev-list-card">
+      <div class="table-wrap"><table>
+        <thead><tr>
+          ${ACT_SORTS.map(([k, label, cls]) => `<th class="${cls}" aria-sort="none"><button type="button" class="th-sort" data-sort="${k}">${label}<span class="sort-ind" aria-hidden="true">↕</span></button></th>`).join('')}
+          <th class="hide-sm">Share</th><th></th>
+        </tr></thead>
+        <tbody id="dev-rows"></tbody>
+      </table></div>
+      <p class="small muted dev-list-empty" id="dev-empty" hidden></p>
+    </div>
+    <p class="small muted act-hint">Select a developer to see their branches, code changes and commits in this window.</p>`;
+}
+
+function devRow(a, i) {
+  const d = a.developers[i];
+  const pct = Math.round(((d.additions + d.deletions) / Math.max(1, a.totals.additions + a.totals.deletions)) * 100);
+  return `<tr class="dev-row" data-i="${i}">
+      <td><div class="who"><span class="avatar">${initials(d.name)}</span><div class="who-t">
+        <button type="button" class="nm dev-open">${esc(d.name)}</button>
+        <div class="small muted dev-mail">${esc(d.email)}</div></div></div></td>
+      <td class="num">${fmt(d.commits)}</td>
+      <td class="num">${plusMinus(d.additions, d.deletions)}</td>
+      <td class="num hide-sm">${fmt(d.files)}</td>
+      <td class="num hide-sm">${fmt(d.branches.length)}</td>
+      <td class="num small nowrap">${ago(d.lastAt)}</td>
+      <td class="hide-sm"><div class="share" title="${pct}% of the lines changed in this window"><span style="width:${Math.max(pct, 1)}%"></span></div></td>
+      <td class="chev"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 5l7 7-7 7"/></svg></td>
+    </tr>`;
+}
+
+function devDetailPane(a, i, order) {
+  const d = a.developers[i];
+  const pos = order.indexOf(i);
+  const windowLabel = a.hours >= 24 ? `${a.hours / 24}-day window` : `${a.hours}-hour window`;
+  const sub = `${fmt(pos + 1)} of ${fmt(order.length)} developers · ${windowLabel}`;
+  return `
+    <div class="row dev-nav">
+      <button type="button" class="btn small" id="dev-back"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7"/></svg>Developers</button>
+      <span class="grow"></span>
+      <div class="row dev-pager">
+        <button type="button" class="btn small" id="dev-prev"${pos <= 0 ? ' disabled' : ''}>‹ Previous</button>
+        <button type="button" class="btn small" id="dev-next"${pos >= order.length - 1 ? ' disabled' : ''}>Next ›</button>
+      </div>
+    </div>
+    <div class="card dev-detail">${devDetailBody(a, d, sub)}</div>`;
+}
+
+// The pane swaps between the developer list and one developer's detail without touching the router.
+function wireActivity(a) {
+  const pane = $('#dev-pane');
+  if (!pane || !a.developers.length) return;
+  let sortKey = 'lines';
+  let sortDir = -1; // busiest first
+  let filter = '';
+  let openIdx = null;
+  let lastIdx = 0;
+  let savedScroll = 0;
+
+  const searchable = (d) => `${d.name} ${d.email} ${d.otherEmails.join(' ')}`.toLowerCase();
+  const value = (d, k) => (k === 'name' ? d.name.toLowerCase()
+    : k === 'commits' ? d.commits
+      : k === 'lines' ? d.additions + d.deletions
+        : k === 'files' ? d.files
+          : k === 'branches' ? d.branches.length
+            : Date.parse(d.lastAt) || 0);
+  const order = () => a.developers
+    .map((d, i) => ({ d, i }))
+    .filter(({ d }) => !filter || searchable(d).includes(filter))
+    .sort((x, y) => ((value(x.d, sortKey) < value(y.d, sortKey) ? -1 : value(x.d, sortKey) > value(y.d, sortKey) ? 1 : 0) * sortDir
+      || (y.d.additions + y.d.deletions) - (x.d.additions + x.d.deletions)))
+    .map(({ i }) => i);
+
+  const paint = () => {
+    const rows = order();
+    const body = $('#dev-rows');
+    if (body) body.innerHTML = rows.map((i) => devRow(a, i)).join('');
+    const count = $('#dev-count');
+    if (count) count.textContent = rows.length === a.developers.length
+      ? `${fmt(rows.length)} developer${rows.length === 1 ? '' : 's'}`
+      : `${fmt(rows.length)} of ${fmt(a.developers.length)} developers`;
+    const empty = $('#dev-empty');
+    if (empty) {
+      empty.hidden = rows.length > 0;
+      if (!rows.length) empty.innerHTML = `No developer matches “${esc(($('#dev-search') || {}).value || '')}”. <button type="button" class="btn small" id="dev-clear">Clear filter</button>`;
+    }
+    const clear = $('#dev-clear');
+    if (clear) clear.onclick = () => {
+      $('#dev-search').value = '';
+      filter = '';
+      paint();
+      $('#dev-search').focus();
+    };
+    $$('.th-sort', pane).forEach((b) => {
+      const on = b.dataset.sort === sortKey;
+      const th = b.closest('th');
+      th.setAttribute('aria-sort', on ? (sortDir > 0 ? 'ascending' : 'descending') : 'none');
+      th.classList.toggle('sorted', on);
+      $('.sort-ind', b).textContent = on ? (sortDir > 0 ? '↑' : '↓') : '↕';
+    });
+  };
+
+  const wireList = () => {
+    const search = $('#dev-search');
+    if (search) {
+      search.oninput = () => { filter = search.value.trim().toLowerCase(); paint(); };
+      search.onkeydown = (e) => {
+        if (e.key === 'Escape' && search.value) { e.stopPropagation(); search.value = ''; filter = ''; paint(); }
+      };
+    }
+    $$('.th-sort', pane).forEach((b) => {
+      const go = () => {
+        if (b.dataset.sort === sortKey) sortDir = -sortDir;
+        else { sortKey = b.dataset.sort; sortDir = sortKey === 'name' ? 1 : -1; }
+        paint();
+      };
+      b.onclick = go;
+      b.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
+    });
+    const body = $('#dev-rows');
+    if (body) body.onclick = (e) => {
+      const tr = e.target.closest('tr[data-i]');
+      if (tr) openDetail(Number(tr.dataset.i));
+    };
+  };
+
+  const openDetail = (i) => {
+    if (!a.developers[i]) return;
+    if (openIdx === null) savedScroll = window.scrollY || 0;
+    lastIdx = i;
+    openIdx = i;
+    pane.innerHTML = devDetailPane(a, i, order());
+    wireLogButtons();
+    const back = $('#dev-back');
+    back.onclick = closeDetail;
+    back.focus({ preventScroll: true });
+    $('#dev-prev').onclick = () => step(-1);
+    $('#dev-next').onclick = () => step(1);
+    pane.onkeydown = (e) => { if (e.key === 'Escape') closeDetail(); };
+    pane.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const step = (delta) => {
+    const rows = order();
+    const next = rows[rows.indexOf(openIdx) + delta];
+    if (next !== undefined) openDetail(next);
+  };
+
+  const closeDetail = () => {
+    openIdx = null;
+    pane.onkeydown = null;
+    pane.innerHTML = devListPane();
+    wireList();
+    paint();
+    if (window.scrollTo) window.scrollTo({ top: savedScroll, behavior: 'smooth' });
+    const row = $(`tr[data-i="${lastIdx}"] .dev-open`, pane);
+    if (row) row.focus({ preventScroll: true });
+  };
+
+  wireList();
+  paint();
 }
 
 async function runScanDialog() {
